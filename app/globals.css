@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; min-height: 100%; }
+body {
+  margin: 0;
+  min-height: 100%;
+  background: #fff7df;
+  color: #2a0908;
+}
+
+body::selection {
+  background: rgba(249, 115, 22, 0.25);
+}
+
+.saung-site-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(255, 209, 102, 0.48), transparent 28rem),
+    radial-gradient(circle at 88% 12%, rgba(155, 17, 30, 0.18), transparent 26rem),
+    radial-gradient(circle at 20% 88%, rgba(249, 115, 22, 0.22), transparent 24rem),
+    linear-gradient(135deg, #fff8e7 0%, #fff1cd 42%, #ffe1b3 100%);
+}
+
+.saung-site-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(115deg, rgba(155, 17, 30, 0.045) 0 12px, transparent 12px 28px),
+    linear-gradient(65deg, rgba(249, 115, 22, 0.055) 0 10px, transparent 10px 30px);
+  background-size: 48px 48px, 56px 56px;
+  background-position: 0 0, 10px 12px;
+  opacity: 0.85;
+}
+
+.saung-site-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to bottom, rgba(255,255,255,0.28), rgba(255,255,255,0.04) 45%, rgba(255,247,223,0.34));
+  pointer-events: none;
+}
+
+.bamboo-pattern {
+  background:
+    radial-gradient(circle at top left, rgba(255, 209, 102, 0.35), transparent 32rem),
+    radial-gradient(circle at bottom right, rgba(249, 115, 22, 0.28), transparent 32rem),
+    #fff7df;
+  background-attachment: fixed;
+}
+
+.hero-weave {
+  background-image:
+    linear-gradient(135deg, rgba(255,255,255,0.18) 25%, transparent 25%),
+    linear-gradient(225deg, rgba(255,255,255,0.14) 25%, transparent 25%),
+    linear-gradient(45deg, rgba(255,209,102,0.16) 25%, transparent 25%),
+    linear-gradient(315deg, rgba(255,255,255,0.10) 25%, transparent 25%);
+  background-position: 22px 0, 22px 0, 0 0, 0 0;
+  background-size: 44px 44px;
+  background-repeat: repeat;
+}
+
+.food-dots {
+  background-image: radial-gradient(rgba(155, 17, 30, 0.18) 1.5px, transparent 1.5px);
+  background-size: 18px 18px;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  box-shadow: 0 24px 60px rgba(42, 9, 8, 0.12);
+  backdrop-filter: blur(18px);
+}
+
+.btn-primary {
+  @apply rounded-2xl bg-gradient-to-r from-saung-red via-saung-orange to-saung-yellow px-5 py-3 font-black text-white shadow-glow transition hover:scale-[1.02] active:scale-[0.98];
+}
+
+.input {
+  @apply w-full rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-semibold outline-none transition placeholder:text-orange-950/35 focus:border-saung-orange focus:ring-4 focus:ring-orange-100;
+}
+
+.card {
+  @apply rounded-[2rem] border border-orange-100 bg-white/85 p-5 shadow-xl shadow-orange-950/5 backdrop-blur;
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: rgba(255, 247, 223, 0.9); }
+::-webkit-scrollbar-thumb { background: rgba(155, 17, 30, 0.35); border-radius: 999px; border: 2px solid rgba(255, 247, 223, 0.9); }
+::-webkit-scrollbar-thumb:hover { background: rgba(155, 17, 30, 0.55); }

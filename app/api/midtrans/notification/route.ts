@@ -1,0 +1,34 @@
+import crypto from "crypto";
+import { NextRequest, NextResponse } from "next/server";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { mapMidtransStatus } from "@/lib/midtrans";
+
+export const runtime = "nodejs";
+
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => null);
+  if (!body) return NextResponse.json({ error: "Invalid notification body." }, { status: 400 });
+
+  const serverKey = process.env.MIDTRANS_SERVER_KEY || "";
+  const signature = crypto
+    .createHash("sha512")
+    .update(`${body.order_id}${body.status_code}${body.gross_amount}${serverKey}`)
+    .digest("hex");
+
+  if (signature !== body.signature_key) {
+    return NextResponse.json({ error: "Invalid signature." }, { status: 403 });
+  }
+
+  const mapped = mapMidtransStatus(String(body.transaction_status || ""), body.fraud_status ? String(body.fraud_status) : undefined);
+
+  const payload: Record<string, unknown> = {
+    payment_status: mapped.payment_status,
+    midtrans_transaction_id: body.transaction_id || null
+  };
+  if (mapped.status) payload.status = mapped.status;
+
+  const { error } = await getSupabaseAdmin().from("orders").update(payload).eq("midtrans_order_id", body.order_id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true });
+}
