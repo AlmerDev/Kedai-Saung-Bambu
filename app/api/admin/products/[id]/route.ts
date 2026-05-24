@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest, unauthorized } from "@/lib/session";
 import { slugify } from "@/lib/format";
+import { getStoragePathFromUrl, MENU_IMAGES_BUCKET } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -29,7 +30,14 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   if (!isAdminRequest(request)) return unauthorized();
   const { id } = await context.params;
-  const { error } = await getSupabaseAdmin().from("products").delete().eq("id", id);
+  const supabase = getSupabaseAdmin();
+  const { data: product } = await supabase.from("products").select("image_url").eq("id", id).maybeSingle();
+
+  const { error } = await supabase.from("products").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const path = getStoragePathFromUrl(product?.image_url);
+  if (path) await supabase.storage.from(MENU_IMAGES_BUCKET).remove([path]);
+
   return NextResponse.json({ ok: true });
 }

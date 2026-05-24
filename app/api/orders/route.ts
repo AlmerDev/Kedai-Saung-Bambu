@@ -68,7 +68,8 @@ export async function POST(request: NextRequest) {
       total,
       status: "baru",
       payment_status: paymentMethod === "midtrans" ? "menunggu" : "belum_bayar",
-      payment_method: paymentMethod
+      payment_method: paymentMethod,
+      payment_type: paymentMethod === "cash" ? "cash" : "midtrans"
     })
     .select("*")
     .single();

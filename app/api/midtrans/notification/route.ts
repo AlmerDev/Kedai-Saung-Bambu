@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { mapMidtransStatus } from "@/lib/midtrans";
+import { extractMidtransPaymentDetail, mapMidtransStatus } from "@/lib/midtrans";
 
 export const runtime = "nodejs";
 
@@ -21,8 +21,13 @@ export async function POST(request: NextRequest) {
 
   const mapped = mapMidtransStatus(String(body.transaction_status || ""), body.fraud_status ? String(body.fraud_status) : undefined);
 
+  const detail = extractMidtransPaymentDetail(body as Record<string, any>);
+
   const payload: Record<string, unknown> = {
     payment_status: mapped.payment_status,
+    payment_type: detail.payment_type || "midtrans",
+    payment_channel: detail.payment_channel,
+    payment_reference: detail.payment_reference,
     midtrans_transaction_id: body.transaction_id || null
   };
   if (mapped.status) payload.status = mapped.status;

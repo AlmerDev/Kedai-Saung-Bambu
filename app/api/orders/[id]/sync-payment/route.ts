@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { mapMidtransStatus, midtransApiBaseUrl, midtransAuthHeader } from "@/lib/midtrans";
+import { extractMidtransPaymentDetail, mapMidtransStatus, midtransApiBaseUrl, midtransAuthHeader } from "@/lib/midtrans";
 
 export const runtime = "nodejs";
 
@@ -53,8 +53,13 @@ export async function POST(_request: NextRequest, context: { params: Promise<{ i
   }
 
   const mapped = mapMidtransStatus(String(result.transaction_status || ""), result.fraud_status ? String(result.fraud_status) : undefined);
+  const detail = extractMidtransPaymentDetail(result as Record<string, any>);
+
   const payload: Record<string, unknown> = {
     payment_status: mapped.payment_status,
+    payment_type: detail.payment_type || "midtrans",
+    payment_channel: detail.payment_channel,
+    payment_reference: detail.payment_reference,
     midtrans_transaction_id: result.transaction_id || order.midtrans_transaction_id || null
   };
   if (mapped.status) payload.status = mapped.status;

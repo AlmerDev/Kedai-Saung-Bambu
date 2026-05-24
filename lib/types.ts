@@ -68,6 +68,9 @@ export type Order = {
   status: OrderStatus;
   payment_status: PaymentStatus;
   payment_method: PaymentMethod;
+  payment_type?: string | null;
+  payment_channel?: string | null;
+  payment_reference?: string | null;
   midtrans_order_id: string | null;
   midtrans_transaction_id: string | null;
   midtrans_snap_token?: string | null;

@@ -251,3 +251,35 @@ supabase/migration_auto_payment_retry.sql
 ```
 
 Kalau kamu membuat database baru dari awal, cukup jalankan `schema.sql` dan `seed.sql` seperti biasa.
+
+## Update Dashboard Payment Method + Font Awesome
+
+Versi ini menambahkan detail metode pembayaran di dashboard admin:
+
+- Order cash tampil sebagai **Bayar di Kasir**.
+- Order Midtrans tampil sesuai metode yang dipilih customer, misalnya **QRIS**, **GoPay**, **Virtual Account BCA/BNI/BRI**, **ShopeePay**, **Kartu Kredit**, atau **Convenience Store**.
+- Dashboard admin menampilkan ringkasan pembayaran hari ini.
+- Halaman Pesanan menampilkan kartu detail metode pembayaran, status pembayaran, meja, dan nomor pelanggan.
+- Icon admin memakai Font Awesome CDN.
+
+Kalau database kamu sudah dibuat dari versi sebelumnya, jalankan migration tambahan ini di Supabase SQL Editor:
+
+```txt
+supabase/migration_payment_method_detail.sql
+```
+
+Kalau kamu membuat database baru dari awal, cukup jalankan `schema.sql` lalu `seed.sql`.
+
+## Update Hapus Foto Upload
+
+Versi ini menambahkan fitur hapus foto yang sudah diupload:
+
+- Foto menu bisa dihapus dari form edit menu.
+- Foto menu juga bisa dihapus langsung dari card daftar menu.
+- Logo toko bisa dihapus dari halaman Setting.
+- Banner/Hero toko bisa dihapus dari halaman Setting.
+- Kalau foto berasal dari Supabase Storage bucket `menu-images`, file-nya ikut dihapus dari Storage.
+- Kalau gambar berasal dari URL eksternal/manual, URL-nya dihapus dari data/form, tetapi file eksternal tidak ikut terhapus.
+- Saat menu dihapus, foto menu yang tersimpan di Supabase Storage juga ikut dibersihkan supaya tidak menumpuk.
+
+Tidak perlu migration database baru untuk update ini.

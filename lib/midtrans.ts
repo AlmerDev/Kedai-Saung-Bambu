@@ -30,3 +30,44 @@ export function mapMidtransStatus(transactionStatus: string, fraudStatus?: strin
 
   return { payment_status: "menunggu" };
 }
+
+
+export function normalizePaymentType(paymentType?: string | null) {
+  const value = String(paymentType || "").trim().toLowerCase();
+  if (!value) return null;
+  return value;
+}
+
+export function extractMidtransPaymentDetail(result: Record<string, any>) {
+  const paymentType = normalizePaymentType(result.payment_type);
+
+  let channel: string | null = null;
+  let reference: string | null = null;
+
+  if (paymentType === "bank_transfer") {
+    const va = Array.isArray(result.va_numbers) ? result.va_numbers[0] : null;
+    channel = va?.bank || result.bank || null;
+    reference = va?.va_number || result.permata_va_number || result.bill_key || null;
+  } else if (paymentType === "echannel") {
+    channel = "mandiri";
+    reference = result.bill_key || null;
+  } else if (paymentType === "qris") {
+    channel = result.acquirer || result.issuer || "qris";
+    reference = result.transaction_id || null;
+  } else if (["gopay", "shopeepay", "dana", "linkaja"].includes(paymentType || "")) {
+    channel = paymentType;
+    reference = result.transaction_id || null;
+  } else if (paymentType === "cstore") {
+    channel = result.store || "cstore";
+    reference = result.payment_code || null;
+  } else if (paymentType === "credit_card") {
+    channel = result.bank || result.card_type || "credit_card";
+    reference = result.masked_card || result.transaction_id || null;
+  }
+
+  return {
+    payment_type: paymentType,
+    payment_channel: channel,
+    payment_reference: reference
+  };
+}
