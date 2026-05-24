@@ -505,10 +505,12 @@ export default function AdminPage() {
       <div className="relative grid min-h-screen lg:grid-cols-[300px_1fr]">
         <aside className="border-b border-white/10 bg-white/10 p-4 text-white backdrop-blur-2xl lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r lg:p-5">
           <div className="flex items-center gap-4 rounded-[2rem] border border-white/10 bg-white/10 p-4 shadow-2xl">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-saung-yellow to-saung-orange text-2xl shadow-glow">🎋</div>
+            <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-saung-yellow to-saung-orange text-2xl shadow-glow">
+              {settings?.logo_url ? <img src={settings.logo_url} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" /> : "🎋"}
+            </div>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.28em] text-saung-yellow">Admin Suite</p>
-              <h1 className="truncate text-lg font-black">Saung Bambu</h1>
+              <h1 className="truncate text-lg font-black">{settings?.store_name || "Saung Bambu"}</h1>
             </div>
           </div>
 
@@ -544,14 +546,21 @@ export default function AdminPage() {
         </aside>
 
         <section className="min-w-0 p-4 sm:p-6 lg:p-8">
-          <header className="mb-6 overflow-hidden rounded-[2.2rem] border border-white/10 bg-white/95 shadow-2xl shadow-black/20">
+          <header className="mb-6 overflow-hidden rounded-[2.2rem] border border-white/10 bg-white shadow-2xl shadow-black/20">
             <div className="relative p-6 sm:p-7">
+              {settings?.hero_image_url ? <img src={settings.hero_image_url} alt={`Banner ${settings.store_name}`} className="absolute inset-0 h-full w-full object-cover" /> : null}
+              <div className={`absolute inset-0 ${settings?.hero_image_url ? "bg-gradient-to-r from-white via-white/92 to-white/72" : "bg-white/95"}`} />
               <div className="absolute right-0 top-0 h-40 w-40 rounded-bl-[5rem] bg-gradient-to-br from-saung-yellow/50 to-saung-orange/30 blur-2xl" />
               <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.28em] text-saung-orange">{navItems.find((item) => item.key === tab)?.label || "Dashboard"}</p>
-                  <h2 className="mt-2 text-3xl font-black text-saung-dark sm:text-4xl">{settings?.store_name || "KEDAI SAUNG BAMBU"}</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-orange-950/65">Kelola operasional kedai dari satu dashboard: pesanan realtime, menu, QR meja, foto toko, dan setting pembayaran.</p>
+                <div className="flex items-center gap-4">
+                  <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-3xl bg-gradient-to-br from-saung-red to-saung-orange text-3xl text-white shadow-glow">
+                    {settings?.logo_url ? <img src={settings.logo_url} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" /> : "🎋"}
+                  </div>
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.28em] text-saung-orange">{navItems.find((item) => item.key === tab)?.label || "Dashboard"}</p>
+                    <h2 className="mt-2 text-3xl font-black text-saung-dark sm:text-4xl">{settings?.store_name || "KEDAI SAUNG BAMBU"}</h2>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-orange-950/65">Kelola operasional kedai dari satu dashboard: pesanan realtime, menu, QR meja, foto toko, dan setting pembayaran.</p>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <button onClick={loadAll} className="rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-black text-saung-dark shadow-sm transition hover:bg-orange-50">↻ Refresh</button>
@@ -685,7 +694,30 @@ export default function AdminPage() {
               </section>
 
               <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-                <div className="rounded-[2rem] bg-white p-5 shadow-2xl shadow-black/10">
+                <div className="space-y-6">
+                  <div className="overflow-hidden rounded-[2rem] bg-white shadow-2xl shadow-black/10">
+                    <div className="relative h-52 bg-gradient-to-br from-saung-red via-saung-orange to-saung-yellow">
+                      {settings?.hero_image_url ? <img src={settings.hero_image_url} alt={`Banner ${settings.store_name}`} className="absolute inset-0 h-full w-full object-cover" /> : null}
+                      <div className="absolute inset-0 bg-gradient-to-t from-saung-dark/80 via-saung-dark/25 to-transparent" />
+                      <div className="absolute bottom-5 left-5 right-5 flex items-end gap-4 text-white">
+                        <div className="grid h-20 w-20 place-items-center overflow-hidden rounded-3xl border border-white/30 bg-white/90 text-4xl shadow-2xl">
+                          {settings?.logo_url ? <img src={settings.logo_url} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" /> : "🎋"}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase tracking-[0.25em] text-saung-yellow">Profil Toko Aktif</p>
+                          <h3 className="truncate text-3xl font-black">{settings?.store_name || "KEDAI SAUNG BAMBU"}</h3>
+                          <p className="truncate text-sm text-white/75">{settings?.tagline || "Logo dan banner akan tampil di halaman customer."}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid gap-3 p-5 md:grid-cols-3">
+                      <div className="rounded-2xl bg-orange-50 p-4"><p className="text-xs font-black uppercase tracking-wider text-orange-700">Alamat</p><p className="mt-1 line-clamp-2 text-sm font-bold text-orange-950/70">{settings?.address || "Belum diisi"}</p></div>
+                      <div className="rounded-2xl bg-yellow-50 p-4"><p className="text-xs font-black uppercase tracking-wider text-yellow-700">Jam Buka</p><p className="mt-1 text-sm font-bold text-orange-950/70">{settings?.opening_hours || "Belum diisi"}</p></div>
+                      <button onClick={() => setTab("settings")} className="rounded-2xl bg-saung-dark p-4 text-left text-sm font-black text-white"><i className="fa-solid fa-image mr-2" />Ubah logo/banner</button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[2rem] bg-white p-5 shadow-2xl shadow-black/10">
                   <div className="mb-5 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-black uppercase tracking-[0.25em] text-saung-orange">Monitoring</p>
@@ -706,6 +738,7 @@ export default function AdminPage() {
                         <b className="text-saung-red">{rupiah(order.total)}</b>
                       </div>
                     )) : <div className="p-6 text-sm font-bold text-orange-950/60">Belum ada pesanan masuk.</div>}
+                  </div>
                   </div>
                 </div>
 

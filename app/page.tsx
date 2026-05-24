@@ -401,6 +401,8 @@ export default function HomePage() {
 
   const whatsappText = encodeURIComponent(`Halo ${settings.store_name}, saya mau tanya menu.`);
   const whatsappUrl = settings.whatsapp ? `https://wa.me/${settings.whatsapp.replace(/\D/g, "")}?text=${whatsappText}` : "#";
+  const storeLogo = settings.logo_url?.trim();
+  const storeHero = settings.hero_image_url?.trim();
 
   return (
     <main className="relative min-h-screen overflow-x-hidden text-saung-dark">
@@ -413,7 +415,9 @@ export default function HomePage() {
         <header className="sticky top-3 z-30 mb-5 rounded-[1.8rem] border border-white/70 bg-white/80 px-4 py-3 shadow-xl shadow-orange-950/10 backdrop-blur-2xl">
           <div className="flex items-center justify-between gap-3">
             <button onClick={backToMenu} className="flex min-w-0 items-center gap-3 text-left">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-saung-red to-saung-orange text-xl text-white shadow-lg">竹</div>
+              <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-saung-red to-saung-orange text-xl text-white shadow-lg">
+                {storeLogo ? <img src={storeLogo} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" /> : "竹"}
+              </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-black leading-tight sm:text-base">{settings.store_name}</p>
                 <p className="truncate text-[11px] font-bold text-orange-950/55">QR Menu • Meja {tableNumber}</p>
@@ -431,12 +435,23 @@ export default function HomePage() {
 
         {view === "menu" ? (
           <>
-            <section className="relative mb-7 overflow-hidden rounded-[2.5rem] border border-white/60 bg-gradient-to-br from-[#5f050b] via-saung-red to-saung-orange p-5 text-white shadow-2xl shadow-red-950/20 sm:p-8 lg:p-10">
-              <div className="absolute inset-0 hero-weave opacity-35" />
+            <section className="relative mb-7 overflow-hidden rounded-[2.5rem] border border-white/60 bg-[#5f050b] p-5 text-white shadow-2xl shadow-red-950/20 sm:p-8 lg:p-10">
+              {storeHero ? <img src={storeHero} alt={`Banner ${settings.store_name}`} className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-gradient-to-br from-[#5f050b] via-saung-red to-saung-orange" />}
+              <div className="absolute inset-0 bg-gradient-to-r from-[#240504]/90 via-[#7a1014]/78 to-[#f97316]/60" />
+              <div className="absolute inset-0 hero-weave opacity-25" />
               <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-saung-yellow/35 blur-3xl" />
               <div className="absolute -bottom-32 left-1/3 h-96 w-96 rounded-full bg-white/15 blur-3xl" />
               <div className="relative grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
                 <div>
+                  <div className="mb-6 flex items-center gap-4 rounded-[1.6rem] border border-white/15 bg-white/12 p-3 backdrop-blur-xl sm:w-fit sm:pr-6">
+                    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-[1.35rem] border border-white/20 bg-white/90 text-3xl text-saung-red shadow-xl">
+                      {storeLogo ? <img src={storeLogo} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" /> : "🎋"}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-saung-yellow">QR Menu Digital</p>
+                      <h2 className="truncate text-xl font-black sm:text-2xl">{settings.store_name}</h2>
+                    </div>
+                  </div>
                   <div className="mb-5 flex flex-wrap gap-2">
                     <span className="rounded-full border border-white/20 bg-white/15 px-4 py-2 text-xs font-black backdrop-blur">🍗 Ayam Bakar & Goreng</span>
                     <span className="rounded-full border border-white/20 bg-white/15 px-4 py-2 text-xs font-black backdrop-blur">🥤 Minuman Segar</span>
@@ -463,13 +478,16 @@ export default function HomePage() {
                 <div className="relative">
                   <div className="rounded-[2.25rem] border border-white/20 bg-white/15 p-3 backdrop-blur-xl">
                     <div className="overflow-hidden rounded-[1.8rem] bg-saung-cream text-saung-dark shadow-2xl">
-                      <div className="relative grid min-h-72 place-items-center bg-gradient-to-br from-yellow-200 via-orange-200 to-red-200 p-8">
-                        <div className="absolute inset-0 food-dots opacity-55" />
+                      <div className="relative grid min-h-80 place-items-center overflow-hidden bg-gradient-to-br from-yellow-200 via-orange-200 to-red-200 p-8">
+                        {storeHero ? <img src={storeHero} alt={`Banner ${settings.store_name}`} className="absolute inset-0 h-full w-full object-cover" /> : null}
+                        <div className={`absolute inset-0 ${storeHero ? "bg-gradient-to-t from-white via-white/70 to-white/15" : "food-dots opacity-55"}`} />
                         <div className="relative text-center">
-                          <div className="mx-auto mb-4 grid h-28 w-28 place-items-center rounded-[2rem] bg-white/75 text-6xl shadow-xl">🍗</div>
-                          <p className="text-xs font-black uppercase tracking-[0.3em] text-saung-red">Signature Menu</p>
-                          <h2 className="mt-2 text-3xl font-black">Ayam Bakar Bumbu Saung</h2>
-                          <p className="mx-auto mt-2 max-w-xs text-sm font-semibold text-orange-950/65">Bumbu merah-kuning, aroma bakar, sambal, lalapan, dan nasi hangat.</p>
+                          <div className="mx-auto mb-4 grid h-28 w-28 place-items-center overflow-hidden rounded-[2rem] bg-white/80 text-6xl shadow-xl ring-1 ring-white/80">
+                            {storeLogo ? <img src={storeLogo} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" /> : "🍗"}
+                          </div>
+                          <p className="text-xs font-black uppercase tracking-[0.3em] text-saung-red">Profil Toko</p>
+                          <h2 className="mt-2 text-3xl font-black">{settings.store_name}</h2>
+                          <p className="mx-auto mt-2 max-w-xs text-sm font-semibold text-orange-950/65">{settings.tagline || "Ayam bakar, ayam goreng, minuman segar, dan cemilan ala saung."}</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-3 divide-x divide-orange-100 bg-white p-4 text-center">
