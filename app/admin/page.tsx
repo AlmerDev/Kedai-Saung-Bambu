@@ -56,7 +56,7 @@ const navItems: { key: Tab; label: string; icon: string; desc: string }[] = [
 ];
 
 function inputClass(extra = "") {
-  return `w-full rounded-2xl border border-orange-200 bg-white/95 px-4 py-3 text-sm font-semibold text-saung-dark outline-none transition placeholder:text-orange-950/35 focus:border-saung-orange focus:ring-4 focus:ring-orange-100 ${extra}`;
+  return `w-full rounded-2xl border border-orange-300/80 bg-[#fff8ea] px-4 py-3 text-sm font-semibold text-saung-dark shadow-inner shadow-orange-950/5 outline-none transition placeholder:text-orange-950/35 focus:border-saung-orange focus:bg-white focus:ring-4 focus:ring-orange-100 ${extra}`;
 }
 
 function statusBadge(status: string) {
@@ -118,6 +118,7 @@ export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState("");
   const [editor, setEditor] = useState<EditorState>(null);
   const [productQuery, setProductQuery] = useState("");
 
@@ -219,18 +220,26 @@ export default function AdminPage() {
   async function handleLogin(e: FormEvent) {
     e.preventDefault();
     setMessage("");
+    setActionLoading("Memeriksa password admin...");
     try {
       await api("/api/auth/login", { method: "POST", body: JSON.stringify({ password }) });
       setAuthenticated(true);
       await loadAll();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Login gagal.");
+    } finally {
+      setActionLoading("");
     }
   }
 
   async function logout() {
-    await api("/api/auth/logout", { method: "POST" });
-    setAuthenticated(false);
+    setActionLoading("Keluar dari admin...");
+    try {
+      await api("/api/auth/logout", { method: "POST" });
+      setAuthenticated(false);
+    } finally {
+      setActionLoading("");
+    }
   }
 
   function notify(text: string) {
@@ -288,6 +297,7 @@ export default function AdminPage() {
   async function saveCategory(e: FormEvent) {
     e.preventDefault();
     setMessage("");
+    setActionLoading(categoryForm.id ? "Menyimpan perubahan kategori..." : "Menambahkan kategori baru...");
     try {
       const body = JSON.stringify({ ...categoryForm, sort_order: Number(categoryForm.sort_order || 0) });
       if (categoryForm.id) await api(`/api/admin/categories/${categoryForm.id}`, { method: "PATCH", body });
@@ -297,12 +307,15 @@ export default function AdminPage() {
       notify(categoryForm.id ? "Kategori berhasil diperbarui." : "Kategori baru berhasil ditambahkan.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Gagal simpan kategori.");
+    } finally {
+      setActionLoading("");
     }
   }
 
   async function saveTable(e: FormEvent) {
     e.preventDefault();
     setMessage("");
+    setActionLoading(tableForm.id ? "Menyimpan perubahan meja..." : "Menambahkan meja baru...");
     try {
       const body = JSON.stringify(tableForm);
       if (tableForm.id) await api(`/api/admin/tables/${tableForm.id}`, { method: "PATCH", body });
@@ -312,12 +325,15 @@ export default function AdminPage() {
       notify(tableForm.id ? "Meja berhasil diperbarui." : "Meja baru berhasil ditambahkan.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Gagal simpan meja.");
+    } finally {
+      setActionLoading("");
     }
   }
 
   async function saveProduct(e: FormEvent) {
     e.preventDefault();
     setMessage("");
+    setActionLoading(productForm.id ? "Menyimpan perubahan menu..." : "Menambahkan menu baru...");
     try {
       const body = JSON.stringify({
         ...productForm,
@@ -332,20 +348,27 @@ export default function AdminPage() {
       notify(productForm.id ? "Menu berhasil diperbarui." : "Menu baru berhasil ditambahkan.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Gagal simpan menu.");
+    } finally {
+      setActionLoading("");
     }
   }
 
   async function uploadFile(file?: File, folder = "menu") {
     if (!file) return "";
-    setMessage("Mengupload gambar...");
+    setMessage("");
+    setActionLoading(folder === "settings" ? "Mengupload foto toko..." : "Mengupload foto menu...");
     const form = new FormData();
     form.append("file", file);
     form.append("folder", folder);
-    const response = await fetch("/api/admin/upload", { method: "POST", body: form });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || "Upload gagal.");
-    notify("Gambar berhasil diupload.");
-    return String(payload.url || "");
+    try {
+      const response = await fetch("/api/admin/upload", { method: "POST", body: form });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Upload gagal.");
+      notify("Gambar berhasil diupload.");
+      return String(payload.url || "");
+    } finally {
+      setActionLoading("");
+    }
   }
 
   async function uploadProductImage(file?: File) {
@@ -377,6 +400,7 @@ export default function AdminPage() {
   async function deleteProductImage() {
     if (!productForm.image_url || deletingPhoto) return;
     setDeletingPhoto(true);
+    setActionLoading("Menghapus foto menu...");
     setMessage("Menghapus foto menu...");
     try {
       await deletePhotoFromStorage(productForm.image_url);
@@ -391,12 +415,14 @@ export default function AdminPage() {
       setMessage(err instanceof Error ? err.message : "Gagal hapus foto menu.");
     } finally {
       setDeletingPhoto(false);
+      setActionLoading("");
     }
   }
 
   async function deleteSavedProductImage(product: Product) {
     if (!product.image_url || deletingPhoto) return;
     setDeletingPhoto(true);
+    setActionLoading("Menghapus foto menu...");
     setMessage("Menghapus foto menu...");
     try {
       await deletePhotoFromStorage(product.image_url);
@@ -407,12 +433,14 @@ export default function AdminPage() {
       setMessage(err instanceof Error ? err.message : "Gagal hapus foto menu.");
     } finally {
       setDeletingPhoto(false);
+      setActionLoading("");
     }
   }
 
   async function deleteSettingImage(field: "logo_url" | "hero_image_url", label: string) {
     if (!settingsForm?.[field] || deletingPhoto) return;
     setDeletingPhoto(true);
+    setActionLoading(`Menghapus ${label}...`);
     setMessage(`Menghapus ${label}...`);
     try {
       await deletePhotoFromStorage(settingsForm[field]);
@@ -425,6 +453,7 @@ export default function AdminPage() {
       setMessage(err instanceof Error ? err.message : `Gagal hapus ${label}.`);
     } finally {
       setDeletingPhoto(false);
+      setActionLoading("");
     }
   }
 
@@ -432,23 +461,29 @@ export default function AdminPage() {
     e.preventDefault();
     if (!settingsForm) return;
     setMessage("");
+    setActionLoading("Menyimpan setting toko...");
     try {
       await api("/api/admin/settings", { method: "PATCH", body: JSON.stringify(settingsForm) });
       await loadAll();
       notify("Setting toko berhasil disimpan.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Gagal simpan setting.");
+    } finally {
+      setActionLoading("");
     }
   }
 
   async function patchOrder(id: string, payload: Partial<Order>) {
     setMessage("");
+    setActionLoading("Mengupdate status order...");
     try {
       await api(`/api/admin/orders/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
       await loadAll();
       notify("Status order berhasil diperbarui.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Gagal update order.");
+    } finally {
+      setActionLoading("");
     }
   }
 
@@ -458,6 +493,7 @@ export default function AdminPage() {
 
   async function confirmRemove() {
     if (!deleteTarget) return;
+    setActionLoading(`Menghapus ${deleteTarget.label}...`);
     try {
       await api(deleteTarget.path, { method: "DELETE" });
       await loadAll();
@@ -465,6 +501,8 @@ export default function AdminPage() {
       setDeleteTarget(null);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Gagal hapus data.");
+    } finally {
+      setActionLoading("");
     }
   }
 
@@ -492,7 +530,10 @@ export default function AdminPage() {
           <p className="mb-5 text-sm leading-6 text-white/70">Masuk untuk mengatur dashboard, pesanan, menu, QR meja, foto toko, dan pembayaran.</p>
           <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" className="w-full rounded-2xl border border-white/15 bg-white/90 px-4 py-4 text-sm font-bold text-saung-dark outline-none placeholder:text-orange-950/40 focus:ring-4 focus:ring-saung-yellow/30" placeholder="Password admin" />
           {message ? <p className="mt-3 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">{message}</p> : null}
-          <button className="mt-5 w-full rounded-2xl bg-gradient-to-r from-saung-red via-saung-orange to-saung-yellow px-5 py-4 font-black text-white shadow-glow transition hover:scale-[1.02] active:scale-[0.98]">Masuk Admin</button>
+          <button disabled={!!actionLoading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-saung-red via-saung-orange to-saung-yellow px-5 py-4 font-black text-white shadow-glow transition hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70">
+            {actionLoading ? <AdminSpinner light /> : <i className="fa-solid fa-lock" />}
+            <span>{actionLoading || "Masuk Admin"}</span>
+          </button>
           <Link href="/" className="mt-5 block text-center text-sm font-bold text-saung-yellow">← Kembali ke menu pelanggan</Link>
         </form>
       </main>
@@ -545,7 +586,7 @@ export default function AdminPage() {
           </div>
         </aside>
 
-        <section className="min-w-0 p-4 sm:p-6 lg:p-8">
+        <section className="admin-content min-w-0 p-4 sm:p-6 lg:p-8">
           <header className="mb-6 overflow-hidden rounded-[2.2rem] border border-white/10 bg-white shadow-2xl shadow-black/20">
             <div className="relative p-6 sm:p-7">
               {settings?.hero_image_url ? <img src={settings.hero_image_url} alt={`Banner ${settings.store_name}`} className="absolute inset-0 h-full w-full object-cover" /> : null}
@@ -563,7 +604,7 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <button onClick={loadAll} className="rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-black text-saung-dark shadow-sm transition hover:bg-orange-50">↻ Refresh</button>
+                  <button onClick={loadAll} disabled={loading || !!actionLoading} className="flex items-center gap-2 rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-black text-saung-dark shadow-sm transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-70">{loading ? <AdminSpinner /> : <span>↻</span>} Refresh</button>
                   <Link href="/" className="rounded-2xl bg-saung-dark px-4 py-3 text-sm font-black text-white shadow-sm transition hover:scale-[1.02]">Lihat Halaman Customer</Link>
                 </div>
               </div>
@@ -575,7 +616,8 @@ export default function AdminPage() {
               {message}
             </div>
           ) : null}
-          {loading ? <div className="mb-5 rounded-3xl border border-yellow-200 bg-yellow-50 p-4 text-sm font-black text-orange-700 shadow">Memuat data terbaru...</div> : null}
+          {loading ? <div className="mb-5 flex items-center gap-3 rounded-3xl border border-yellow-200 bg-yellow-50 p-4 text-sm font-black text-orange-700 shadow"><AdminSpinner />Memuat data terbaru...</div> : null}
+          {actionLoading ? <AdminBusyOverlay text={actionLoading} /> : null}
 
           {deleteTarget ? (
             <div className="fixed inset-0 z-50 grid place-items-center bg-saung-dark/60 px-4 backdrop-blur-sm">
@@ -585,7 +627,7 @@ export default function AdminPage() {
                 <p className="mt-2 text-sm leading-6 text-orange-950/70">Data <b>{deleteTarget.label}</b> akan dihapus dari database. Aksi ini tidak bisa dibatalkan.</p>
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
                   <button onClick={() => setDeleteTarget(null)} className="rounded-2xl bg-orange-50 px-5 py-3 font-black text-saung-red">Batal</button>
-                  <button onClick={confirmRemove} className="rounded-2xl bg-red-700 px-5 py-3 font-black text-white">Ya, Hapus</button>
+                  <button onClick={confirmRemove} disabled={!!actionLoading} className="flex items-center justify-center gap-2 rounded-2xl bg-red-700 px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-70">{actionLoading ? <AdminSpinner light /> : null}Ya, Hapus</button>
                 </div>
               </div>
             </div>
@@ -614,7 +656,7 @@ export default function AdminPage() {
                       </div>
                       <div className="grid gap-2">
                         <label className="block cursor-pointer rounded-2xl border border-dashed border-saung-orange bg-orange-50 p-4 text-center text-sm font-black text-saung-red transition hover:bg-orange-100">
-                          <i className="fa-solid fa-upload mr-2" />Upload foto menu
+                          {actionLoading.includes("Mengupload foto menu") ? <AdminSpinner /> : <i className="fa-solid fa-upload mr-2" />}Upload foto menu
                           <input type="file" accept="image/*" onChange={(e) => uploadProductImage(e.target.files?.[0])} className="hidden" />
                         </label>
                         {productForm.image_url ? (
@@ -646,7 +688,7 @@ export default function AdminPage() {
                       <label className="flex items-center gap-3 rounded-2xl bg-orange-50 px-4 py-3 text-sm font-bold"><input type="checkbox" checked={productForm.is_available} onChange={(e) => setProductForm({ ...productForm, is_available: e.target.checked })} /> Menu tersedia</label>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <button type="button" onClick={closeEditor} className="rounded-2xl bg-orange-50 px-4 py-3 font-black text-saung-red">Batal</button>
-                        <button className="btn-primary">{editor.mode === "create" ? "Tambah Menu" : "Simpan Perubahan"}</button>
+                        <button disabled={!!actionLoading} className="btn-primary flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70">{actionLoading ? <AdminSpinner light /> : null}{editor.mode === "create" ? "Tambah Menu" : "Simpan Perubahan"}</button>
                       </div>
                     </div>
                   </form>
@@ -662,7 +704,7 @@ export default function AdminPage() {
                     <label className="flex items-center gap-3 rounded-2xl bg-orange-50 px-4 py-3 text-sm font-bold"><input type="checkbox" checked={categoryForm.is_active} onChange={(e) => setCategoryForm({ ...categoryForm, is_active: e.target.checked })} /> Kategori aktif</label>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <button type="button" onClick={closeEditor} className="rounded-2xl bg-orange-50 px-4 py-3 font-black text-saung-red">Batal</button>
-                      <button className="btn-primary">{editor.mode === "create" ? "Tambah Kategori" : "Simpan Perubahan"}</button>
+                      <button disabled={!!actionLoading} className="btn-primary flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70">{actionLoading ? <AdminSpinner light /> : null}{editor.mode === "create" ? "Tambah Kategori" : "Simpan Perubahan"}</button>
                     </div>
                   </form>
                 ) : null}
@@ -676,7 +718,7 @@ export default function AdminPage() {
                     <label className="flex items-center gap-3 rounded-2xl bg-orange-50 px-4 py-3 text-sm font-bold"><input type="checkbox" checked={tableForm.is_active} onChange={(e) => setTableForm({ ...tableForm, is_active: e.target.checked })} /> Meja aktif</label>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <button type="button" onClick={closeEditor} className="rounded-2xl bg-orange-50 px-4 py-3 font-black text-saung-red">Batal</button>
-                      <button className="btn-primary">{editor.mode === "create" ? "Tambah Meja" : "Simpan Perubahan"}</button>
+                      <button disabled={!!actionLoading} className="btn-primary flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70">{actionLoading ? <AdminSpinner light /> : null}{editor.mode === "create" ? "Tambah Meja" : "Simpan Perubahan"}</button>
                     </div>
                   </form>
                 ) : null}
@@ -795,7 +837,7 @@ export default function AdminPage() {
                   <p className="text-xs font-black uppercase tracking-[0.25em] text-saung-orange">Order Management</p>
                   <h3 className="text-2xl font-black">Pesanan Masuk</h3>
                 </div>
-                <button onClick={loadAll} className="rounded-2xl bg-orange-50 px-4 py-3 text-sm font-black text-saung-red">Refresh Order</button>
+                <button onClick={loadAll} disabled={loading || !!actionLoading} className="flex items-center justify-center gap-2 rounded-2xl bg-orange-50 px-4 py-3 text-sm font-black text-saung-red disabled:cursor-not-allowed disabled:opacity-70">{loading ? <AdminSpinner /> : <span>↻</span>} Refresh Order</button>
               </div>
               <div className="grid gap-4">
                 {orders.map((order) => (
@@ -978,14 +1020,14 @@ export default function AdminPage() {
                   <div className="mt-4 grid gap-3">
                     <div className="rounded-[1.5rem] border border-orange-100 bg-orange-50/60 p-3">
                       <label className="block cursor-pointer rounded-2xl border border-dashed border-saung-orange bg-white p-4 text-sm font-black text-saung-red transition hover:bg-orange-50">
-                        <i className="fa-solid fa-upload mr-2" />Upload Logo dari File
+                        {actionLoading.includes("foto toko") ? <AdminSpinner /> : <i className="fa-solid fa-upload mr-2" />}Upload Logo dari File
                         <input type="file" accept="image/*" onChange={(e) => uploadSettingImage("logo_url", e.target.files?.[0])} className="hidden" />
                       </label>
                       {settingsForm.logo_url ? <button type="button" onClick={() => deleteSettingImage("logo_url", "Logo toko")} disabled={deletingPhoto} className="mt-2 w-full rounded-2xl bg-red-50 px-4 py-3 text-sm font-black text-red-700 transition hover:bg-red-100 disabled:opacity-60"><i className="fa-solid fa-trash mr-2" />Hapus Logo</button> : null}
                     </div>
                     <div className="rounded-[1.5rem] border border-orange-100 bg-orange-50/60 p-3">
                       <label className="block cursor-pointer rounded-2xl border border-dashed border-saung-orange bg-white p-4 text-sm font-black text-saung-red transition hover:bg-orange-50">
-                        <i className="fa-solid fa-upload mr-2" />Upload Banner/Hero dari File
+                        {actionLoading.includes("foto toko") ? <AdminSpinner /> : <i className="fa-solid fa-upload mr-2" />}Upload Banner/Hero dari File
                         <input type="file" accept="image/*" onChange={(e) => uploadSettingImage("hero_image_url", e.target.files?.[0])} className="hidden" />
                       </label>
                       {settingsForm.hero_image_url ? <button type="button" onClick={() => deleteSettingImage("hero_image_url", "Banner toko")} disabled={deletingPhoto} className="mt-2 w-full rounded-2xl bg-red-50 px-4 py-3 text-sm font-black text-red-700 transition hover:bg-red-100 disabled:opacity-60"><i className="fa-solid fa-trash mr-2" />Hapus Banner</button> : null}
@@ -1024,7 +1066,7 @@ export default function AdminPage() {
                     </div>
                     <input value={settingsForm.hero_image_url} onChange={(e) => setSettingsForm({ ...settingsForm, hero_image_url: e.target.value })} className={inputClass()} placeholder="Hero image URL opsional" />
                   </div>
-                  <button className="btn-primary w-full">Simpan Setting Toko</button>
+                  <button disabled={!!actionLoading} className="btn-primary flex w-full items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70">{actionLoading ? <AdminSpinner light /> : null}Simpan Setting Toko</button>
                   <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-6 text-orange-950/70">Password admin tetap diganti dari file <b>.env.local</b> / Vercel ENV: <b>ADMIN_PASSWORD</b>.</p>
                 </div>
               </div>
@@ -1033,6 +1075,31 @@ export default function AdminPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function AdminSpinner({ light = false, size = "h-4 w-4" }: { light?: boolean; size?: string }) {
+  return <span className={`inline-block ${size} animate-spin rounded-full border-2 ${light ? "border-white/35 border-t-white" : "border-saung-red/25 border-t-saung-red"}`} />;
+}
+
+function AdminBusyOverlay({ text }: { text: string }) {
+  return (
+    <div className="fixed inset-0 z-[85] grid place-items-center bg-saung-dark/55 px-4 backdrop-blur-xl">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(255,194,61,0.24),transparent_28%),radial-gradient(circle_at_80%_80%,rgba(193,29,45,0.2),transparent_32%)]" />
+      <div className="relative w-full max-w-sm overflow-hidden rounded-[2.25rem] border border-white/70 bg-white/95 p-6 text-center text-saung-dark shadow-2xl shadow-black/35 backdrop-blur-2xl">
+        <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-saung-yellow/35 blur-2xl" />
+        <div className="absolute -bottom-12 -left-12 h-36 w-36 rounded-full bg-saung-red/20 blur-2xl" />
+        <div className="relative mx-auto grid h-20 w-20 place-items-center rounded-[1.7rem] bg-gradient-to-br from-saung-red via-saung-orange to-saung-yellow shadow-glow">
+          <AdminSpinner light size="h-9 w-9" />
+        </div>
+        <p className="relative mt-5 text-xs font-black uppercase tracking-[0.28em] text-saung-orange">Sedang proses</p>
+        <h3 className="relative mt-2 text-2xl font-black leading-tight">{text}</h3>
+        <div className="relative mt-6 h-2 overflow-hidden rounded-full bg-orange-100">
+          <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-saung-red via-saung-orange to-saung-yellow" />
+        </div>
+        <p className="relative mt-3 text-xs font-bold text-orange-950/45">Jangan tutup halaman sampai proses selesai.</p>
+      </div>
+    </div>
   );
 }
 

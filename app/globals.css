@@ -101,3 +101,75 @@ body::selection {
 ::-webkit-scrollbar-track { background: rgba(255, 247, 223, 0.9); }
 ::-webkit-scrollbar-thumb { background: rgba(155, 17, 30, 0.35); border-radius: 999px; border: 2px solid rgba(255, 247, 223, 0.9); }
 ::-webkit-scrollbar-thumb:hover { background: rgba(155, 17, 30, 0.55); }
+
+/* Admin contrast polish: supaya dashboard tidak putih semua/nyatu */
+.admin-content {
+  position: relative;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 209, 102, 0.18), transparent 26rem),
+    radial-gradient(circle at 92% 14%, rgba(249, 115, 22, 0.14), transparent 22rem),
+    linear-gradient(135deg, rgba(255, 247, 223, 0.13), rgba(255, 237, 213, 0.08));
+}
+
+.admin-content::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 0 min(300px, 100vw);
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 209, 102, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 209, 102, 0.055) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0.25));
+}
+
+.admin-content [class*="bg-white"] {
+  background-color: rgba(255, 250, 241, 0.96) !important;
+}
+
+.admin-content [class*="bg-white/"] {
+  background-color: rgba(255, 250, 241, 0.88) !important;
+}
+
+.admin-content [class*="bg-orange-50"] {
+  background-color: rgba(255, 237, 213, 0.92) !important;
+}
+
+.admin-content [class*="bg-yellow-50"] {
+  background-color: rgba(254, 249, 195, 0.92) !important;
+}
+
+.admin-content [class*="border-orange-100"],
+.admin-content [class*="border-orange-200"] {
+  border-color: rgba(251, 146, 60, 0.45) !important;
+}
+
+.admin-content [class*="shadow-black/10"],
+.admin-content [class*="shadow-black/20"],
+.admin-content [class*="shadow-orange-950"] {
+  box-shadow: 0 20px 55px rgba(88, 31, 7, 0.18) !important;
+}
+
+.admin-content article,
+.admin-content header,
+.admin-content form,
+.admin-content .admin-panel-card {
+  outline: 1px solid rgba(251, 146, 60, 0.22);
+}
+
+.admin-content article:nth-child(even) {
+  background-image: linear-gradient(135deg, rgba(255, 237, 213, 0.72), rgba(255, 250, 241, 0.96));
+}
+
+.admin-content input,
+.admin-content textarea,
+.admin-content select {
+  background-color: #fff8ea !important;
+  border-color: rgba(251, 146, 60, 0.55) !important;
+}
+
+.admin-content input:focus,
+.admin-content textarea:focus,
+.admin-content select:focus {
+  background-color: white !important;
+}

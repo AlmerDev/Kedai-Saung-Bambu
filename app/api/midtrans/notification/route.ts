@@ -5,6 +5,18 @@ import { extractMidtransPaymentDetail, mapMidtransStatus } from "@/lib/midtrans"
 
 export const runtime = "nodejs";
 
+function errorMessage(error: unknown) {
+  if (!error) return "";
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && "message" in error) return String((error as { message?: unknown }).message || "");
+  return String(error);
+}
+
+function isMissingPaymentColumn(error: unknown) {
+  const lower = errorMessage(error).toLowerCase();
+  return lower.includes("schema cache") && (lower.includes("payment_type") || lower.includes("payment_channel") || lower.includes("payment_reference") || lower.includes("midtrans_transaction_id"));
+}
+
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid notification body." }, { status: 400 });
@@ -32,8 +44,16 @@ export async function POST(request: NextRequest) {
   };
   if (mapped.status) payload.status = mapped.status;
 
-  const { error } = await getSupabaseAdmin().from("orders").update(payload).eq("midtrans_order_id", body.order_id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const supabase = getSupabaseAdmin();
+  let updateResult = await supabase.from("orders").update(payload).eq("midtrans_order_id", body.order_id);
+
+  if (updateResult.error && isMissingPaymentColumn(updateResult.error)) {
+    const fallbackPayload: Record<string, unknown> = { payment_status: mapped.payment_status };
+    if (mapped.status) fallbackPayload.status = mapped.status;
+    updateResult = await supabase.from("orders").update(fallbackPayload).eq("midtrans_order_id", body.order_id);
+  }
+
+  if (updateResult.error) return NextResponse.json({ error: updateResult.error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true });
 }

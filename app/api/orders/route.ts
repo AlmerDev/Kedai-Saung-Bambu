@@ -6,58 +6,107 @@ export const runtime = "nodejs";
 
 type IncomingItem = { product_id: string; quantity: number; note?: string };
 
+function jsonError(message: string, status = 500, details?: unknown) {
+  return NextResponse.json({ error: message, details }, { status });
+}
+
+function getMessage(error: unknown) {
+  if (!error) return "";
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && "message" in error) return String((error as { message?: unknown }).message || "");
+  return String(error);
+}
+
+function isMissingOptionalOrderColumn(error: unknown) {
+  const lower = getMessage(error).toLowerCase();
+  return (
+    lower.includes("schema cache") &&
+    (lower.includes("payment_type") || lower.includes("payment_channel") || lower.includes("payment_reference") || lower.includes("midtrans_snap_token") || lower.includes("midtrans_redirect_url"))
+  );
+}
+
+function friendlySupabaseError(message: string) {
+  const lower = message.toLowerCase();
+
+  if (lower.includes("row-level security")) {
+    return "Order ditolak Supabase karena RLS. Pastikan SUPABASE_SERVICE_ROLE_KEY di .env.local/Vercel memakai service_role key, bukan anon/public key. Jalankan juga supabase/fix_checkout_orders.sql.";
+  }
+
+  if (lower.includes("payment_type") || lower.includes("payment_channel") || lower.includes("midtrans_snap_token") || lower.includes("midtrans_redirect_url")) {
+    return "Database orders belum update kolom pembayaran. Jalankan supabase/fix_checkout_orders.sql di Supabase SQL Editor, lalu coba lagi.";
+  }
+
+  if (lower.includes("invalid api key") || lower.includes("jwt") || lower.includes("unauthorized")) {
+    return "Key Supabase tidak valid. Cek NEXT_PUBLIC_SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY di .env.local/Vercel ENV.";
+  }
+
+  return message;
+}
+
 export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Body tidak valid." }, { status: 400 });
+  try {
+    const body = await request.json().catch(() => null);
+    if (!body) return jsonError("Body tidak valid.", 400);
 
-  const customerName = String(body.customer_name || "").trim();
-  const customerPhone = String(body.customer_phone || "").trim();
-  const tableNumber = String(body.table_number || "").trim();
-  const note = String(body.note || "").trim();
-  const paymentMethod = body.payment_method === "midtrans" ? "midtrans" : "cash";
-  const items = Array.isArray(body.items) ? (body.items as IncomingItem[]) : [];
+    const customerName = String(body.customer_name || "").trim();
+    const customerPhone = String(body.customer_phone || "").trim();
+    const tableNumber = String(body.table_number || "").trim();
+    const note = String(body.note || "").trim();
+    const paymentMethod = body.payment_method === "midtrans" ? "midtrans" : "cash";
+    const items = Array.isArray(body.items) ? (body.items as IncomingItem[]) : [];
 
-  if (!customerName) return NextResponse.json({ error: "Nama pelanggan wajib diisi." }, { status: 400 });
-  if (!tableNumber) return NextResponse.json({ error: "Nomor meja wajib diisi." }, { status: 400 });
-  if (items.length === 0) return NextResponse.json({ error: "Keranjang masih kosong." }, { status: 400 });
+    if (!customerName) return jsonError("Nama pelanggan wajib diisi.", 400);
+    if (!tableNumber) return jsonError("Nomor meja wajib diisi.", 400);
+    if (items.length === 0) return jsonError("Keranjang masih kosong.", 400);
 
-  const normalized = items
-    .map((item) => ({ product_id: String(item.product_id || ""), quantity: Math.max(1, Number(item.quantity || 1)), note: String(item.note || "").trim() }))
-    .filter((item) => item.product_id);
+    const normalized = items
+      .map((item) => ({
+        product_id: String(item.product_id || ""),
+        quantity: Math.max(1, Number(item.quantity || 1)),
+        note: String(item.note || "").trim()
+      }))
+      .filter((item) => item.product_id);
 
-  const productIds = [...new Set(normalized.map((item) => item.product_id))];
-  const supabase = getSupabaseAdmin();
+    if (normalized.length === 0) return jsonError("Item pesanan tidak valid.", 400);
 
-  const { data: products, error: productError } = await supabase
-    .from("products")
-    .select("id, name, price, is_available")
-    .in("id", productIds)
-    .eq("is_available", true);
+    const productIds = [...new Set(normalized.map((item) => item.product_id))];
+    const supabase = getSupabaseAdmin();
 
-  if (productError) return NextResponse.json({ error: productError.message }, { status: 500 });
-  if (!products || products.length !== productIds.length) return NextResponse.json({ error: "Ada menu yang tidak tersedia." }, { status: 400 });
+    const { data: products, error: productError } = await supabase
+      .from("products")
+      .select("id, name, price, is_available")
+      .in("id", productIds)
+      .eq("is_available", true);
 
-  const { data: settings } = await supabase.from("store_settings").select("service_fee_percent").eq("id", 1).single();
-  const itemRows = normalized.map((item) => {
-    const product = products.find((entry) => entry.id === item.product_id)!;
-    const subtotal = Number(product.price) * item.quantity;
-    return {
-      product_id: product.id,
-      product_name: product.name,
-      price: Number(product.price),
-      quantity: item.quantity,
-      subtotal,
-      note: item.note || null
-    };
-  });
+    if (productError) return jsonError(friendlySupabaseError(productError.message), 500, productError);
+    if (!products || products.length !== productIds.length) return jsonError("Ada menu yang tidak tersedia / sudah dihapus. Refresh halaman lalu pilih ulang menu.", 400);
 
-  const subtotal = itemRows.reduce((sum, item) => sum + item.subtotal, 0);
-  const serviceFee = Math.round((subtotal * Number(settings?.service_fee_percent || 0)) / 100);
-  const total = subtotal + serviceFee;
+    const { data: settings, error: settingsError } = await supabase
+      .from("store_settings")
+      .select("service_fee_percent")
+      .eq("id", 1)
+      .maybeSingle();
 
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .insert({
+    if (settingsError) return jsonError(friendlySupabaseError(settingsError.message), 500, settingsError);
+
+    const itemRows = normalized.map((item) => {
+      const product = products.find((entry) => entry.id === item.product_id)!;
+      const subtotal = Number(product.price) * item.quantity;
+      return {
+        product_id: product.id,
+        product_name: product.name,
+        price: Number(product.price),
+        quantity: item.quantity,
+        subtotal,
+        note: item.note || null
+      };
+    });
+
+    const subtotal = itemRows.reduce((sum, item) => sum + item.subtotal, 0);
+    const serviceFee = Math.round((subtotal * Number(settings?.service_fee_percent || 0)) / 100);
+    const total = subtotal + serviceFee;
+
+    const baseOrderPayload = {
       order_code: todayOrderCode(),
       table_number: tableNumber,
       customer_name: customerName,
@@ -68,23 +117,41 @@ export async function POST(request: NextRequest) {
       total,
       status: "baru",
       payment_status: paymentMethod === "midtrans" ? "menunggu" : "belum_bayar",
-      payment_method: paymentMethod,
-      payment_type: paymentMethod === "cash" ? "cash" : "midtrans"
-    })
-    .select("*")
-    .single();
+      payment_method: paymentMethod
+    };
 
-  if (orderError) return NextResponse.json({ error: orderError.message }, { status: 500 });
+    const fullOrderPayload = {
+      ...baseOrderPayload,
+      payment_type: paymentMethod === "cash" ? "cash" : "midtrans",
+      payment_channel: paymentMethod === "cash" ? "cash" : null
+    };
 
-  const { data: orderItems, error: itemError } = await supabase
-    .from("order_items")
-    .insert(itemRows.map((item) => ({ ...item, order_id: order.id })))
-    .select("*");
+    let insertResult = await supabase.from("orders").insert(fullOrderPayload).select("*").single();
 
-  if (itemError) {
-    await supabase.from("orders").delete().eq("id", order.id);
-    return NextResponse.json({ error: itemError.message }, { status: 500 });
+    // Biar checkout tetap jalan walaupun database lama belum punya kolom payment_type/payment_channel.
+    if (insertResult.error && isMissingOptionalOrderColumn(insertResult.error)) {
+      insertResult = await supabase.from("orders").insert(baseOrderPayload).select("*").single();
+    }
+
+    if (insertResult.error || !insertResult.data) {
+      return jsonError(friendlySupabaseError(insertResult.error?.message || "Gagal membuat order di Supabase."), 500, insertResult.error);
+    }
+
+    const order = insertResult.data;
+
+    const { data: orderItems, error: itemError } = await supabase
+      .from("order_items")
+      .insert(itemRows.map((item) => ({ ...item, order_id: order.id })))
+      .select("*");
+
+    if (itemError) {
+      await supabase.from("orders").delete().eq("id", order.id);
+      return jsonError(friendlySupabaseError(itemError.message), 500, itemError);
+    }
+
+    return NextResponse.json({ order: { ...order, order_items: orderItems || [] } }, { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Server gagal membuat order.";
+    return jsonError(friendlySupabaseError(message), 500);
   }
-
-  return NextResponse.json({ order: { ...order, order_items: orderItems || [] } }, { status: 201 });
 }

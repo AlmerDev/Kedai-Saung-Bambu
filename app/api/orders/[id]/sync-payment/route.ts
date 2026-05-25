@@ -4,6 +4,18 @@ import { extractMidtransPaymentDetail, mapMidtransStatus, midtransApiBaseUrl, mi
 
 export const runtime = "nodejs";
 
+function errorMessage(error: unknown) {
+  if (!error) return "";
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && "message" in error) return String((error as { message?: unknown }).message || "");
+  return String(error);
+}
+
+function isMissingPaymentColumn(error: unknown) {
+  const lower = errorMessage(error).toLowerCase();
+  return lower.includes("schema cache") && (lower.includes("payment_type") || lower.includes("payment_channel") || lower.includes("payment_reference") || lower.includes("midtrans_transaction_id"));
+}
+
 export async function POST(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   const serverKey = process.env.MIDTRANS_SERVER_KEY;
@@ -64,14 +76,26 @@ export async function POST(_request: NextRequest, context: { params: Promise<{ i
   };
   if (mapped.status) payload.status = mapped.status;
 
-  const { data: updatedOrder, error: updateError } = await supabase
+  let updateResult = await supabase
     .from("orders")
     .update(payload)
     .eq("id", id)
     .select("*, order_items(*)")
     .single();
 
-  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+  if (updateResult.error && isMissingPaymentColumn(updateResult.error)) {
+    const fallbackPayload: Record<string, unknown> = { payment_status: mapped.payment_status };
+    if (mapped.status) fallbackPayload.status = mapped.status;
 
-  return NextResponse.json({ order: updatedOrder, synced: true, midtrans_status: result.transaction_status });
+    updateResult = await supabase
+      .from("orders")
+      .update(fallbackPayload)
+      .eq("id", id)
+      .select("*, order_items(*)")
+      .single();
+  }
+
+  if (updateResult.error) return NextResponse.json({ error: updateResult.error.message }, { status: 500 });
+
+  return NextResponse.json({ order: updateResult.data, synced: true, midtrans_status: result.transaction_status });
 }
