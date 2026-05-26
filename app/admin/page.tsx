@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Category, DiningTable, Order, Product, StoreSettings } from "@/lib/types";
 import { rupiah } from "@/lib/format";
 
@@ -31,6 +31,15 @@ type SettingsForm = {
   opening_hours: string;
   logo_url: string;
   hero_image_url: string;
+};
+
+type NewOrderNotice = {
+  id: string;
+  order_code: string;
+  table_number: string | null;
+  customer_name: string;
+  total: number;
+  created_at: string;
 };
 
 const emptyProduct: ProductForm = {
@@ -128,6 +137,14 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [settingsForm, setSettingsForm] = useState<SettingsForm | null>(null);
+  const [newOrderNotice, setNewOrderNotice] = useState<NewOrderNotice | null>(null);
+  const [unreadOrders, setUnreadOrders] = useState(0);
+  const [notificationEnabled, setNotificationEnabled] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("unsupported");
+
+  const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  const orderWatcherReadyRef = useRef(false);
+  const notificationEnabledRef = useRef(false);
 
   const [productForm, setProductForm] = useState<ProductForm>(emptyProduct);
   const [categoryForm, setCategoryForm] = useState<CategoryForm>(emptyCategory);
@@ -136,6 +153,10 @@ export default function AdminPage() {
   const [deletingPhoto, setDeletingPhoto] = useState(false);
 
   const siteUrl = typeof window !== "undefined" ? window.location.origin : "";
+
+  useEffect(() => {
+    notificationEnabledRef.current = notificationEnabled;
+  }, [notificationEnabled]);
 
   async function api<T>(url: string, options?: RequestInit): Promise<T> {
     const headers = new Headers(options?.headers);
@@ -152,6 +173,98 @@ export default function AdminPage() {
     if (payload.authenticated) await loadAll();
   }
 
+  function selectTab(nextTab: Tab) {
+    setTab(nextTab);
+    if (nextTab === "orders") {
+      setUnreadOrders(0);
+      setNewOrderNotice(null);
+    }
+  }
+
+  function playNewOrderSound() {
+    if (!notificationEnabledRef.current || typeof window === "undefined") return;
+    try {
+      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const audio = new AudioContextClass();
+      const oscillator = audio.createOscillator();
+      const gain = audio.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(780, audio.currentTime);
+      oscillator.frequency.setValueAtTime(980, audio.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.001, audio.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.18, audio.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.45);
+      oscillator.connect(gain);
+      gain.connect(audio.destination);
+      oscillator.start();
+      oscillator.stop(audio.currentTime + 0.48);
+      window.setTimeout(() => audio.close().catch(() => undefined), 700);
+    } catch {
+      // Browser bisa memblokir audio kalau belum ada interaksi user. Abaikan supaya admin tetap jalan.
+    }
+  }
+
+  function showBrowserNotification(order: NewOrderNotice) {
+    if (!notificationEnabledRef.current || typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+    try {
+      new Notification("Pesanan baru masuk", {
+        body: `#${order.order_code} • Meja ${order.table_number || "-"} • ${rupiah(order.total)}`,
+        icon: "/favicon.ico"
+      });
+    } catch {
+      // Abaikan jika browser menolak native notification.
+    }
+  }
+
+  function registerIncomingOrders(nextOrders: Order[]) {
+    setOrders(nextOrders);
+
+    if (!orderWatcherReadyRef.current) {
+      knownOrderIdsRef.current = new Set(nextOrders.map((order) => order.id));
+      orderWatcherReadyRef.current = true;
+      return;
+    }
+
+    const freshOrders = nextOrders.filter((order) => !knownOrderIdsRef.current.has(order.id));
+    nextOrders.forEach((order) => knownOrderIdsRef.current.add(order.id));
+
+    if (!freshOrders.length) return;
+
+    const newest = freshOrders[0];
+    const notice: NewOrderNotice = {
+      id: newest.id,
+      order_code: newest.order_code,
+      table_number: newest.table_number,
+      customer_name: newest.customer_name,
+      total: newest.total,
+      created_at: newest.created_at
+    };
+
+    setUnreadOrders((count) => count + freshOrders.length);
+    setNewOrderNotice(notice);
+    playNewOrderSound();
+    showBrowserNotification(notice);
+  }
+
+  async function requestNotificationAccess() {
+    setNotificationEnabled(true);
+    notificationEnabledRef.current = true;
+
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setNotificationPermission("unsupported");
+      notify("Notifikasi aktif di dashboard. Browser ini belum mendukung notifikasi sistem.");
+      return;
+    }
+
+    const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+    setNotificationPermission(permission);
+    if (permission === "granted") notify("Notifikasi pesanan baru aktif. Jangan tutup halaman admin ya.");
+    else if (permission === "denied") notify("Notifikasi browser ditolak. Toast di dashboard tetap aktif.");
+    else notify("Notifikasi dashboard aktif. Izinkan notifikasi browser kalau mau popup sistem.");
+  }
+
   async function loadAll() {
     setLoading(true);
     try {
@@ -165,7 +278,7 @@ export default function AdminPage() {
       setCategories(cat.categories);
       setProducts(prod.products);
       setTables(tabRes.tables);
-      setOrders(orderRes.orders);
+      registerIncomingOrders(orderRes.orders);
       setSettings(settingRes.settings);
       setSettingsForm({
         store_name: settingRes.settings.store_name || "",
@@ -185,8 +298,31 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = window.localStorage.getItem("ksb-admin-notification-enabled") === "true";
+      setNotificationEnabled(saved);
+      notificationEnabledRef.current = saved;
+      setNotificationPermission("Notification" in window ? Notification.permission : "unsupported");
+    }
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem("ksb-admin-notification-enabled", String(notificationEnabled));
+  }, [notificationEnabled]);
+
+  useEffect(() => {
+    if (authenticated !== true) return;
+    const timer = window.setInterval(async () => {
+      try {
+        const payload = await api<{ orders: Order[] }>("/api/admin/orders?limit=120");
+        registerIncomingOrders(payload.orders);
+      } catch {
+        // Polling notifikasi sengaja silent supaya tidak mengganggu admin.
+      }
+    }, 7000);
+    return () => window.clearInterval(timer);
+  }, [authenticated]);
 
   const stats = useMemo(() => {
     const today = new Date().toDateString();
@@ -559,14 +695,15 @@ export default function AdminPage() {
             {navItems.map((item) => (
               <button
                 key={item.key}
-                onClick={() => setTab(item.key)}
-                className={`flex min-w-[170px] items-center gap-3 rounded-2xl px-4 py-3 text-left transition lg:min-w-0 ${tab === item.key ? "bg-gradient-to-r from-saung-red to-saung-orange text-white shadow-glow" : "bg-white/10 text-white/72 hover:bg-white/20 hover:text-white"}`}
+                onClick={() => selectTab(item.key)}
+                className={`relative flex min-w-[170px] items-center gap-3 rounded-2xl px-4 py-3 text-left transition lg:min-w-0 ${tab === item.key ? "bg-gradient-to-r from-saung-red to-saung-orange text-white shadow-glow" : "bg-white/10 text-white/72 hover:bg-white/20 hover:text-white"}`}
               >
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/14 text-lg"><i className={item.icon} /></span>
                 <span>
                   <span className="block text-sm font-black">{item.label}</span>
                   <span className="block text-xs text-white/55">{item.desc}</span>
                 </span>
+                {item.key === "orders" && unreadOrders > 0 ? <span className="ml-auto grid h-6 min-w-6 place-items-center rounded-full bg-red-600 px-1 text-xs font-black text-white ring-2 ring-white/30">{unreadOrders}</span> : null}
               </button>
             ))}
           </nav>
@@ -604,6 +741,11 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-3">
+                  <button onClick={requestNotificationAccess} className={`relative flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-black shadow-sm transition hover:scale-[1.02] ${notificationEnabled ? "bg-emerald-600 text-white" : "bg-yellow-100 text-orange-900"}`}>
+                    <i className={notificationEnabled ? "fa-solid fa-bell" : "fa-regular fa-bell"} />
+                    {notificationEnabled ? "Notif Aktif" : "Aktifkan Notif"}
+                    {unreadOrders ? <span className="absolute -right-2 -top-2 grid h-6 min-w-6 place-items-center rounded-full bg-red-700 px-1 text-xs text-white ring-2 ring-white">{unreadOrders}</span> : null}
+                  </button>
                   <button onClick={loadAll} disabled={loading || !!actionLoading} className="flex items-center gap-2 rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-black text-saung-dark shadow-sm transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-70">{loading ? <AdminSpinner /> : <span>↻</span>} Refresh</button>
                   <Link href="/" className="rounded-2xl bg-saung-dark px-4 py-3 text-sm font-black text-white shadow-sm transition hover:scale-[1.02]">Lihat Halaman Customer</Link>
                 </div>
@@ -615,6 +757,16 @@ export default function AdminPage() {
             <div className="fixed bottom-5 right-5 z-[70] max-w-sm rounded-3xl border border-orange-200 bg-white p-4 text-sm font-black text-saung-red shadow-2xl">
               {message}
             </div>
+          ) : null}
+          {newOrderNotice ? (
+            <NewOrderToast
+              order={newOrderNotice}
+              onClose={() => setNewOrderNotice(null)}
+              onOpen={() => {
+                selectTab("orders");
+                setNewOrderNotice(null);
+              }}
+            />
           ) : null}
           {loading ? <div className="mb-5 flex items-center gap-3 rounded-3xl border border-yellow-200 bg-yellow-50 p-4 text-sm font-black text-orange-700 shadow"><AdminSpinner />Memuat data terbaru...</div> : null}
           {actionLoading ? <AdminBusyOverlay text={actionLoading} /> : null}
@@ -755,7 +907,7 @@ export default function AdminPage() {
                     <div className="grid gap-3 p-5 md:grid-cols-3">
                       <div className="rounded-2xl bg-orange-50 p-4"><p className="text-xs font-black uppercase tracking-wider text-orange-700">Alamat</p><p className="mt-1 line-clamp-2 text-sm font-bold text-orange-950/70">{settings?.address || "Belum diisi"}</p></div>
                       <div className="rounded-2xl bg-yellow-50 p-4"><p className="text-xs font-black uppercase tracking-wider text-yellow-700">Jam Buka</p><p className="mt-1 text-sm font-bold text-orange-950/70">{settings?.opening_hours || "Belum diisi"}</p></div>
-                      <button onClick={() => setTab("settings")} className="rounded-2xl bg-saung-dark p-4 text-left text-sm font-black text-white"><i className="fa-solid fa-image mr-2" />Ubah logo/banner</button>
+                      <button onClick={() => selectTab("settings")} className="rounded-2xl bg-saung-dark p-4 text-left text-sm font-black text-white"><i className="fa-solid fa-image mr-2" />Ubah logo/banner</button>
                     </div>
                   </div>
 
@@ -765,7 +917,7 @@ export default function AdminPage() {
                       <p className="text-xs font-black uppercase tracking-[0.25em] text-saung-orange">Monitoring</p>
                       <h3 className="text-2xl font-black text-saung-dark">Pesanan Terbaru</h3>
                     </div>
-                    <button onClick={() => setTab("orders")} className="rounded-2xl bg-orange-50 px-4 py-2 text-sm font-black text-saung-red">Lihat semua</button>
+                    <button onClick={() => selectTab("orders")} className="rounded-2xl bg-orange-50 px-4 py-2 text-sm font-black text-saung-red">Lihat semua</button>
                   </div>
                   <div className="overflow-hidden rounded-[1.5rem] border border-orange-100">
                     {recentOrders.length ? recentOrders.map((order) => (
@@ -785,13 +937,28 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-5">
+                  <div className="rounded-[2rem] border border-emerald-100 bg-gradient-to-br from-emerald-50 to-yellow-50 p-5 shadow-2xl shadow-black/10">
+                    <div className="flex items-start gap-3">
+                      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-600 text-white"><i className="fa-solid fa-bell" /></div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-700">Notifikasi Order</p>
+                        <h3 className="mt-1 text-xl font-black text-saung-dark">{notificationEnabled ? "Aktif memantau pesanan" : "Belum aktif"}</h3>
+                        <p className="mt-1 text-sm leading-6 text-orange-950/60">Admin mengecek pesanan baru otomatis setiap beberapa detik. Aktifkan supaya ada bunyi dan popup saat order masuk.</p>
+                        <button onClick={requestNotificationAccess} className={`mt-4 rounded-2xl px-4 py-3 text-sm font-black ${notificationEnabled ? "bg-emerald-600 text-white" : "bg-saung-dark text-white"}`}>
+                          <i className="fa-solid fa-bell mr-2" />{notificationEnabled ? "Notif Sudah Aktif" : "Aktifkan Notif"}
+                        </button>
+                        <p className="mt-2 text-xs font-bold text-orange-950/45">Status browser: {notificationPermission === "unsupported" ? "tidak mendukung" : notificationPermission}</p>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="rounded-[2rem] bg-gradient-to-br from-saung-red via-saung-orange to-saung-yellow p-5 text-white shadow-glow">
                     <p className="text-sm font-bold text-white/75">Quick Action</p>
                     <h3 className="mt-1 text-2xl font-black">Kelola lebih cepat</h3>
                     <div className="mt-5 grid gap-3">
                       <button onClick={openProductCreate} className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-saung-red"><i className="fa-solid fa-plus mr-2" />Tambah Menu</button>
                       <button onClick={openTableCreate} className="rounded-2xl bg-white/20 px-4 py-3 text-sm font-black text-white backdrop-blur"><i className="fa-solid fa-qrcode mr-2" />Tambah Meja QR</button>
-                      <button onClick={() => setTab("settings")} className="rounded-2xl bg-saung-dark px-4 py-3 text-sm font-black text-white"><i className="fa-solid fa-image mr-2" />Atur Foto Toko</button>
+                      <button onClick={() => selectTab("settings")} className="rounded-2xl bg-saung-dark px-4 py-3 text-sm font-black text-white"><i className="fa-solid fa-image mr-2" />Atur Foto Toko</button>
                     </div>
                   </div>
 
@@ -1075,6 +1242,38 @@ export default function AdminPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+
+function NewOrderToast({ order, onClose, onOpen }: { order: NewOrderNotice; onClose: () => void; onOpen: () => void }) {
+  return (
+    <div className="fixed right-4 top-4 z-[90] w-[calc(100%-2rem)] max-w-md overflow-hidden rounded-[2rem] border border-yellow-200 bg-white shadow-2xl shadow-black/25 sm:right-6 sm:top-6">
+      <div className="relative overflow-hidden bg-gradient-to-r from-saung-red via-saung-orange to-saung-yellow p-5 text-white">
+        <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/20 blur-2xl" />
+        <button onClick={onClose} className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/15 text-lg font-black text-white hover:bg-white/25">×</button>
+        <div className="relative flex items-start gap-4 pr-10">
+          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-white/18 text-2xl shadow-glow">
+            <i className="fa-solid fa-bell" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-yellow-100">Pesanan baru masuk</p>
+            <h3 className="mt-2 text-2xl font-black leading-tight">#{order.order_code}</h3>
+            <p className="mt-1 text-sm font-bold text-white/85">Meja {order.table_number || "-"} • {order.customer_name}</p>
+          </div>
+        </div>
+      </div>
+      <div className="grid gap-3 bg-white p-5 sm:grid-cols-[1fr_auto] sm:items-center">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-950/45">Total pesanan</p>
+          <p className="mt-1 text-xl font-black text-saung-red">{rupiah(order.total)}</p>
+          <p className="mt-1 text-xs font-bold text-orange-950/45">Masuk: {new Date(order.created_at).toLocaleString("id-ID")}</p>
+        </div>
+        <button onClick={onOpen} className="rounded-2xl bg-saung-dark px-5 py-3 text-sm font-black text-white shadow-sm transition hover:scale-[1.02]">
+          <i className="fa-solid fa-eye mr-2" />Lihat Order
+        </button>
+      </div>
+    </div>
   );
 }
 

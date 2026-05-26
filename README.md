@@ -283,3 +283,15 @@ Versi ini menambahkan fitur hapus foto yang sudah diupload:
 - Saat menu dihapus, foto menu yang tersimpan di Supabase Storage juga ikut dibersihkan supaya tidak menumpuk.
 
 Tidak perlu migration database baru untuk update ini.
+
+## Update: Notifikasi Pesanan Baru Admin
+
+Versi ini menambahkan fitur notifikasi pesanan baru di halaman `/admin`:
+
+- Admin otomatis mengecek order baru setiap ±7 detik selama halaman admin terbuka.
+- Saat order baru masuk, muncul toast "Pesanan baru masuk" di kanan atas dashboard.
+- Ada badge jumlah order baru di tombol Pesanan.
+- Tombol "Aktifkan Notif" di dashboard/header bisa mengaktifkan bunyi dan notifikasi browser.
+- Tidak perlu migration database baru untuk fitur ini.
+
+Catatan: notifikasi browser dan bunyi hanya aktif selama halaman admin terbuka. Browser juga perlu diberi izin notifikasi.
