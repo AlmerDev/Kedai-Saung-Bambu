@@ -1,0 +1,8 @@
+KEDAI SAUNG BAMBU - Profile Only Update
+
+Perubahan:
+- Fitur banner/hero image tidak dipakai lagi di halaman customer.
+- Hero customer dibuat solid, clean, dan hanya memakai logo/profile toko.
+- Admin Setting hanya menampilkan upload logo/profile toko.
+- Dashboard admin memakai profil/logo toko, bukan banner.
+- Database tidak perlu diubah; kolom hero_image_url lama boleh tetap ada tapi tidak digunakan.

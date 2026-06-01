@@ -1,0 +1,10 @@
+Update fitur:
+1. Tampilan customer dibuat lebih clean dan ringan.
+2. Kartu rekomendasi sekarang menampilkan gambar menu.
+3. Di HP, saat checkout ada tombol floating "Bayar Sekarang" yang otomatis scroll ke Ringkasan Pembayaran.
+4. Emoji/icon bawaan diganti ke Font Awesome.
+5. Dashboard admin ditambah data lengkap: omzet harian, bulanan, total, rata-rata order, belum lunas, menu aktif, meja QR, menu terlaris, dan ringkasan pembayaran.
+6. Ditambahkan tab Laporan untuk rekap jualan dengan export PDF dan Excel.
+
+Cara update: copy semua isi folder ini ke folder project lama, jangan hapus .env.local dan .git, lalu npm install, npm run build, git push.
+Tidak perlu SQL baru untuk update ini.

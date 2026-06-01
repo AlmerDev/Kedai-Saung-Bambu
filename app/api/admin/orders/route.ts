@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   if (!isAdminRequest(request)) return unauthorized();
   const { searchParams } = new URL(request.url);
-  const limit = Math.min(Number(searchParams.get("limit") || 100), 300);
+  const limit = Math.min(Number(searchParams.get("limit") || 500), 1000);
 
   const { data, error } = await getSupabaseAdmin()
     .from("orders")

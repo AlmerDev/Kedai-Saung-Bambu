@@ -20,11 +20,11 @@ on conflict (id) do update set
   opening_hours = excluded.opening_hours;
 
 insert into public.categories (name, slug, emoji, sort_order, is_active) values
-('Menu Ayam', 'menu-ayam', '🍗', 1, true),
-('Paket Nasi', 'paket-nasi', '🍛', 2, true),
-('Minuman', 'minuman', '🥤', 3, true),
-('Kopi & Teh', 'kopi-teh', '☕', 4, true),
-('Makanan Ringan', 'makanan-ringan', '🍟', 5, true)
+('Menu Ayam', 'menu-ayam', 'fa-solid fa-drumstick-bite', 1, true),
+('Paket Nasi', 'paket-nasi', 'fa-solid fa-bowl-rice', 2, true),
+('Minuman', 'minuman', 'fa-solid fa-glass-water', 3, true),
+('Kopi & Teh', 'kopi-teh', 'fa-solid fa-mug-hot', 4, true),
+('Makanan Ringan', 'makanan-ringan', 'fa-solid fa-cookie-bite', 5, true)
 on conflict (slug) do update set name = excluded.name, emoji = excluded.emoji, sort_order = excluded.sort_order, is_active = excluded.is_active;
 
 insert into public.products (category_id, name, slug, description, price, badge, sort_order, is_available)

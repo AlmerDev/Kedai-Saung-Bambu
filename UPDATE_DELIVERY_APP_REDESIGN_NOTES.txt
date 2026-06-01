@@ -1,0 +1,16 @@
+KEDAI SAUNG BAMBU - Delivery App Redesign Update
+
+Perubahan utama:
+1. Seluruh tampilan customer dibuat lebih minimalis elegan dengan gaya app delivery seperti Gojek/Grab, tetap memakai warna merah, orange, dan kuning.
+2. Category menu di HP dibuat horizontal scroll/geser, lebih nyaman seperti aplikasi food delivery.
+3. Card menu di HP dibuat model list compact dengan gambar di kiri, info dan tombol tambah di kanan.
+4. Rekomendasi menu di HP dibuat carousel horizontal dan tetap menampilkan gambar menu.
+5. Tombol Bayar Sekarang mobile tetap auto-scroll ke ringkasan pembayaran.
+6. Tampilan admin ikut dibuat lebih clean: sidebar putih, dashboard terang, card lebih tegas, input lebih readable.
+7. Emoji kategori bawaan seed diganti ke class Font Awesome.
+8. Select kategori admin tidak lagi menampilkan emoji mentah/class icon sebelum nama kategori.
+
+Catatan:
+- Tidak perlu SQL baru.
+- Kalau database lama masih menyimpan emoji kategori, tampilan customer tetap memakai Font Awesome fallback berdasarkan nama kategori.
+- Kalau ingin data kategori di database ikut menjadi Font Awesome, jalankan ulang seed.sql atau edit kategori dari admin.

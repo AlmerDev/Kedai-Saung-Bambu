@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Category, DiningTable, Order, Product, StoreSettings } from "@/lib/types";
 import { rupiah } from "@/lib/format";
 
-type Tab = "dashboard" | "orders" | "products" | "categories" | "tables" | "settings";
+type Tab = "dashboard" | "orders" | "products" | "categories" | "tables" | "reports" | "settings";
 type EditorState = null | { type: "product" | "category" | "table"; mode: "create" | "edit" };
 
 type ProductForm = {
@@ -52,7 +52,7 @@ const emptyProduct: ProductForm = {
   sort_order: "0",
   is_available: true
 };
-const emptyCategory: CategoryForm = { name: "", emoji: "🍽️", sort_order: "0", is_active: true };
+const emptyCategory: CategoryForm = { name: "", emoji: "fa-solid fa-utensils", sort_order: "0", is_active: true };
 const emptyTable: TableForm = { table_number: "", label: "", is_active: true };
 
 const navItems: { key: Tab; label: string; icon: string; desc: string }[] = [
@@ -61,8 +61,37 @@ const navItems: { key: Tab; label: string; icon: string; desc: string }[] = [
   { key: "products", label: "Menu", icon: "fa-solid fa-utensils", desc: "Makanan & minuman" },
   { key: "categories", label: "Kategori", icon: "fa-solid fa-layer-group", desc: "Kelompok menu" },
   { key: "tables", label: "Meja & QR", icon: "fa-solid fa-qrcode", desc: "QR tiap meja" },
+  { key: "reports", label: "Laporan", icon: "fa-solid fa-file-export", desc: "Rekap jualan" },
   { key: "settings", label: "Setting", icon: "fa-solid fa-gear", desc: "Profil kedai" }
 ];
+
+function toDateInput(value: Date) {
+  const offset = value.getTimezoneOffset();
+  return new Date(value.getTime() - offset * 60_000).toISOString().slice(0, 10);
+}
+
+function firstDayOfMonthInput() {
+  const now = new Date();
+  return toDateInput(new Date(now.getFullYear(), now.getMonth(), 1));
+}
+
+function categoryIconClass(name?: string | null, stored?: string | null) {
+  if (stored?.startsWith("fa-")) return stored;
+  const value = (name || "").toLowerCase();
+  if (value.includes("ayam")) return "fa-solid fa-drumstick-bite";
+  if (value.includes("minum") || value.includes("kopi") || value.includes("teh")) return "fa-solid fa-mug-saucer";
+  if (value.includes("ringan") || value.includes("cemilan") || value.includes("snack")) return "fa-solid fa-cookie-bite";
+  if (value.includes("nasi") || value.includes("paket")) return "fa-solid fa-bowl-food";
+  return "fa-solid fa-utensils";
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 function inputClass(extra = "") {
   return `w-full rounded-2xl border border-orange-300/80 bg-[#fff8ea] px-4 py-3 text-sm font-semibold text-saung-dark shadow-inner shadow-orange-950/5 outline-none transition placeholder:text-orange-950/35 focus:border-saung-orange focus:bg-white focus:ring-4 focus:ring-orange-100 ${extra}`;
@@ -141,6 +170,8 @@ export default function AdminPage() {
   const [unreadOrders, setUnreadOrders] = useState(0);
   const [notificationEnabled, setNotificationEnabled] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("unsupported");
+  const [reportFrom, setReportFrom] = useState(firstDayOfMonthInput);
+  const [reportTo, setReportTo] = useState(() => toDateInput(new Date()));
 
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const orderWatcherReadyRef = useRef(false);
@@ -326,21 +357,55 @@ export default function AdminPage() {
 
   const stats = useMemo(() => {
     const today = new Date().toDateString();
+    const now = new Date();
+    const isPaid = (order: Order) => order.payment_status === "lunas" || order.payment_method === "cash";
     const todayOrders = orders.filter((order) => new Date(order.created_at).toDateString() === today);
-    const paidOrders = todayOrders.filter((order) => order.payment_status === "lunas" || order.payment_method === "cash");
+    const monthOrders = orders.filter((order) => {
+      const date = new Date(order.created_at);
+      return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+    });
+    const paidOrders = orders.filter(isPaid);
+    const paidToday = todayOrders.filter(isPaid);
+    const paidMonth = monthOrders.filter(isPaid);
+    const orderItems = orders.flatMap((order) => order.order_items || []);
+    const productMap = new Map<string, { name: string; qty: number; revenue: number }>();
+    for (const item of orderItems) {
+      const current = productMap.get(item.product_name) || { name: item.product_name, qty: 0, revenue: 0 };
+      current.qty += Number(item.quantity || 0);
+      current.revenue += Number(item.subtotal || 0);
+      productMap.set(item.product_name, current);
+    }
+    const bestProducts = Array.from(productMap.values()).sort((a, b) => b.qty - a.qty).slice(0, 5);
+    const paymentSummary = {
+      cash: orders.filter((order) => order.payment_method === "cash").length,
+      midtrans: orders.filter((order) => order.payment_method === "midtrans").length,
+      qris: orders.filter((order) => (order.payment_type || "").toLowerCase() === "qris").length,
+      va: orders.filter((order) => (order.payment_type || "").toLowerCase() === "bank_transfer").length
+    };
     return {
       products: products.length,
       activeProducts: products.filter((item) => item.is_available).length,
       categories: categories.length,
       tables: tables.length,
       ordersToday: todayOrders.length,
-      omzetToday: paidOrders.reduce((sum, order) => sum + order.total, 0),
+      ordersMonth: monthOrders.length,
+      ordersAll: orders.length,
+      omzetToday: paidToday.reduce((sum, order) => sum + order.total, 0),
+      omzetMonth: paidMonth.reduce((sum, order) => sum + order.total, 0),
+      omzetAll: paidOrders.reduce((sum, order) => sum + order.total, 0),
+      avgTicket: paidOrders.length ? Math.round(paidOrders.reduce((sum, order) => sum + order.total, 0) / paidOrders.length) : 0,
       pendingOrders: orders.filter((order) => ["baru", "diproses"].includes(order.status)).length,
+      readyOrders: orders.filter((order) => order.status === "siap").length,
+      doneOrders: orders.filter((order) => order.status === "selesai").length,
+      canceledOrders: orders.filter((order) => order.status === "dibatalkan").length,
       unpaidOrders: orders.filter((order) => ["belum_bayar", "menunggu"].includes(order.payment_status)).length,
+      paidOrders: paidOrders.length,
       cashOrdersToday: todayOrders.filter((order) => order.payment_method === "cash").length,
       midtransOrdersToday: todayOrders.filter((order) => order.payment_method === "midtrans").length,
       paidMidtransToday: todayOrders.filter((order) => order.payment_method === "midtrans" && order.payment_status === "lunas").length,
-      waitingMidtransToday: todayOrders.filter((order) => order.payment_method === "midtrans" && order.payment_status === "menunggu").length
+      waitingMidtransToday: todayOrders.filter((order) => order.payment_method === "midtrans" && order.payment_status === "menunggu").length,
+      bestProducts,
+      paymentSummary
     };
   }, [orders, products, categories, tables]);
 
@@ -352,6 +417,105 @@ export default function AdminPage() {
 
   const recentOrders = orders.slice(0, 6);
   const latestProducts = products.slice(0, 5);
+
+  const reportOrders = useMemo(() => {
+    const from = reportFrom ? new Date(`${reportFrom}T00:00:00`) : null;
+    const to = reportTo ? new Date(`${reportTo}T23:59:59`) : null;
+    return orders.filter((order) => {
+      const date = new Date(order.created_at);
+      if (from && date < from) return false;
+      if (to && date > to) return false;
+      return true;
+    });
+  }, [orders, reportFrom, reportTo]);
+
+  const reportStats = useMemo(() => {
+    const paid = reportOrders.filter((order) => order.payment_status === "lunas" || order.payment_method === "cash");
+    const items = reportOrders.flatMap((order) => (order.order_items || []).map((item) => ({ ...item, order })));
+    const productMap = new Map<string, { name: string; qty: number; revenue: number }>();
+    for (const item of items) {
+      const current = productMap.get(item.product_name) || { name: item.product_name, qty: 0, revenue: 0 };
+      current.qty += Number(item.quantity || 0);
+      current.revenue += Number(item.subtotal || 0);
+      productMap.set(item.product_name, current);
+    }
+    return {
+      totalOrders: reportOrders.length,
+      paidOrders: paid.length,
+      unpaidOrders: reportOrders.filter((order) => ["belum_bayar", "menunggu"].includes(order.payment_status)).length,
+      canceledOrders: reportOrders.filter((order) => order.status === "dibatalkan").length,
+      revenue: paid.reduce((sum, order) => sum + order.total, 0),
+      items,
+      products: Array.from(productMap.values()).sort((a, b) => b.revenue - a.revenue)
+    };
+  }, [reportOrders]);
+
+  function reportRowsHtml() {
+    const rows = reportOrders.map((order) => `
+      <tr>
+        <td>${escapeHtml(new Date(order.created_at).toLocaleString("id-ID"))}</td>
+        <td>${escapeHtml(order.order_code)}</td>
+        <td>${escapeHtml(order.table_number || "-")}</td>
+        <td>${escapeHtml(order.customer_name)}</td>
+        <td>${escapeHtml(order.payment_method === "midtrans" ? paymentMethodInfo(order).label : "Bayar Kasir")}</td>
+        <td>${escapeHtml(order.payment_status)}</td>
+        <td>${escapeHtml(order.status)}</td>
+        <td>${order.subtotal}</td>
+        <td>${order.service_fee}</td>
+        <td>${order.total}</td>
+      </tr>`).join("");
+    return rows || `<tr><td colspan="10">Tidak ada data pada periode ini.</td></tr>`;
+  }
+
+  function downloadBlob(filename: string, content: string, type: string) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportReportExcel() {
+    const html = `
+      <html><head><meta charset="utf-8" /></head><body>
+      <h2>Rekap Jualan ${escapeHtml(settings?.store_name || "KEDAI SAUNG BAMBU")}</h2>
+      <p>Periode: ${escapeHtml(reportFrom)} s/d ${escapeHtml(reportTo)}</p>
+      <table border="1">
+        <thead><tr><th>Tanggal</th><th>Kode</th><th>Meja</th><th>Pelanggan</th><th>Metode</th><th>Pembayaran</th><th>Status</th><th>Subtotal</th><th>Service Fee</th><th>Total</th></tr></thead>
+        <tbody>${reportRowsHtml()}</tbody>
+      </table>
+      </body></html>`;
+    downloadBlob(`rekap-kedai-saung-bambu-${reportFrom}-${reportTo}.xls`, `\ufeff${html}`, "application/vnd.ms-excel;charset=utf-8");
+  }
+
+  function exportReportPdf() {
+    const html = `
+      <html><head><title>Rekap Jualan</title><meta charset="utf-8" />
+      <style>body{font-family:Arial,sans-serif;padding:28px;color:#2a0908}h1{margin:0 0 6px}p{margin:4px 0 18px;color:#6b4b3a}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#9b111e;color:white;text-align:left}td,th{border:1px solid #ddd;padding:8px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}.box{border:1px solid #f3c27d;border-radius:12px;padding:12px;background:#fff8ea}.box b{display:block;font-size:18px;margin-top:4px}</style>
+      </head><body>
+        <h1>Rekap Jualan ${escapeHtml(settings?.store_name || "KEDAI SAUNG BAMBU")}</h1>
+        <p>Periode: ${escapeHtml(reportFrom)} s/d ${escapeHtml(reportTo)}</p>
+        <div class="summary">
+          <div class="box">Total Omzet<b>${escapeHtml(rupiah(reportStats.revenue))}</b></div>
+          <div class="box">Total Order<b>${reportStats.totalOrders}</b></div>
+          <div class="box">Order Lunas<b>${reportStats.paidOrders}</b></div>
+          <div class="box">Belum Lunas<b>${reportStats.unpaidOrders}</b></div>
+        </div>
+        <table><thead><tr><th>Tanggal</th><th>Kode</th><th>Meja</th><th>Pelanggan</th><th>Metode</th><th>Pembayaran</th><th>Status</th><th>Subtotal</th><th>Service Fee</th><th>Total</th></tr></thead><tbody>${reportRowsHtml()}</tbody></table>
+        <script>window.onload=()=>{window.print();}</script>
+      </body></html>`;
+    const win = window.open("", "_blank");
+    if (!win) {
+      notify("Popup browser diblokir. Izinkan popup dulu untuk export PDF.");
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+  }
 
   async function handleLogin(e: FormEvent) {
     e.preventDefault();
@@ -409,7 +573,7 @@ export default function AdminPage() {
   }
 
   function openCategoryEdit(category: Category) {
-    setCategoryForm({ id: category.id, name: category.name, emoji: category.emoji || "🍽️", sort_order: String(category.sort_order || 0), is_active: category.is_active });
+    setCategoryForm({ id: category.id, name: category.name, emoji: category.emoji?.startsWith("fa-") ? category.emoji : categoryIconClass(category.name, category.emoji), sort_order: String(category.sort_order || 0), is_active: category.is_active });
     setEditor({ type: "category", mode: "edit" });
   }
 
@@ -653,11 +817,11 @@ export default function AdminPage() {
   if (!authenticated) {
     return (
       <main className="relative grid min-h-screen place-items-center overflow-hidden bg-[#190908] px-4 py-10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,209,102,0.26),transparent_34rem),radial-gradient(circle_at_80%_10%,rgba(249,115,22,0.23),transparent_28rem),linear-gradient(135deg,#190908,#3a0c0b_55%,#7a1014)]" />
+        <div className="absolute inset-0 bg-saung-dark" />
         <div className="absolute inset-0 opacity-30 food-dots" />
         <form onSubmit={handleLogin} className="relative w-full max-w-md rounded-[2.5rem] border border-white/15 bg-white/10 p-8 text-white shadow-2xl backdrop-blur-2xl">
           <div className="mb-7 flex items-center gap-4">
-            <div className="grid h-16 w-16 place-items-center rounded-3xl bg-gradient-to-br from-saung-yellow to-saung-orange text-3xl shadow-glow">🎋</div>
+            <div className="grid h-16 w-16 place-items-center rounded-3xl bg-saung-yellow text-2xl shadow-glow"><i className="fa-solid fa-store" /></div>
             <div>
               <p className="text-xs font-black uppercase tracking-[0.35em] text-saung-yellow">Admin Panel</p>
               <h1 className="text-2xl font-black">KEDAI SAUNG BAMBU</h1>
@@ -666,7 +830,7 @@ export default function AdminPage() {
           <p className="mb-5 text-sm leading-6 text-white/70">Masuk untuk mengatur dashboard, pesanan, menu, QR meja, foto toko, dan pembayaran.</p>
           <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" className="w-full rounded-2xl border border-white/15 bg-white/90 px-4 py-4 text-sm font-bold text-saung-dark outline-none placeholder:text-orange-950/40 focus:ring-4 focus:ring-saung-yellow/30" placeholder="Password admin" />
           {message ? <p className="mt-3 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">{message}</p> : null}
-          <button disabled={!!actionLoading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-saung-red via-saung-orange to-saung-yellow px-5 py-4 font-black text-white shadow-glow transition hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70">
+          <button disabled={!!actionLoading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-saung-red px-5 py-4 font-black text-white shadow-glow transition hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70">
             {actionLoading ? <AdminSpinner light /> : <i className="fa-solid fa-lock" />}
             <span>{actionLoading || "Masuk Admin"}</span>
           </button>
@@ -677,16 +841,16 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#170908] text-saung-dark">
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_12%_10%,rgba(255,209,102,0.18),transparent_30rem),radial-gradient(circle_at_90%_20%,rgba(249,115,22,0.16),transparent_26rem),linear-gradient(135deg,#170908,#2b0c0a_45%,#4b100c)]" />
+    <main className="admin-gojek-shell min-h-screen bg-[#f6f7f2] text-saung-dark">
+      <div className="admin-gojek-backdrop fixed inset-0" />
       <div className="relative grid min-h-screen lg:grid-cols-[300px_1fr]">
-        <aside className="border-b border-white/10 bg-white/10 p-4 text-white backdrop-blur-2xl lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r lg:p-5">
-          <div className="flex items-center gap-4 rounded-[2rem] border border-white/10 bg-white/10 p-4 shadow-2xl">
-            <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-saung-yellow to-saung-orange text-2xl shadow-glow">
-              {settings?.logo_url ? <img src={settings.logo_url} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" /> : "🎋"}
+        <aside className="admin-gojek-sidebar border-b border-orange-100 bg-white p-4 text-saung-dark lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r lg:p-5">
+          <div className="flex items-center gap-4 rounded-[2rem] border border-orange-100 bg-[#fff8ec] p-4 shadow-sm">
+            <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-white text-2xl text-saung-red shadow-sm">
+              {settings?.logo_url ? <img src={settings.logo_url} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" /> : <i className="fa-solid fa-store" />}
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-saung-yellow">Admin Suite</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-saung-orange">Admin Suite</p>
               <h1 className="truncate text-lg font-black">{settings?.store_name || "Saung Bambu"}</h1>
             </div>
           </div>
@@ -696,48 +860,47 @@ export default function AdminPage() {
               <button
                 key={item.key}
                 onClick={() => selectTab(item.key)}
-                className={`relative flex min-w-[170px] items-center gap-3 rounded-2xl px-4 py-3 text-left transition lg:min-w-0 ${tab === item.key ? "bg-gradient-to-r from-saung-red to-saung-orange text-white shadow-glow" : "bg-white/10 text-white/72 hover:bg-white/20 hover:text-white"}`}
+                className={`admin-nav-item relative flex min-w-[170px] items-center gap-3 rounded-2xl px-4 py-3 text-left transition lg:min-w-0 ${tab === item.key ? "admin-nav-active bg-saung-red text-white shadow-sm" : "bg-[#fff8ec] text-orange-950/65 hover:bg-white hover:text-saung-dark"}`}
               >
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/14 text-lg"><i className={item.icon} /></span>
+                <span className="admin-nav-icon grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-lg text-saung-red shadow-sm"><i className={item.icon} /></span>
                 <span>
                   <span className="block text-sm font-black">{item.label}</span>
-                  <span className="block text-xs text-white/55">{item.desc}</span>
+                  <span className="admin-nav-desc block text-xs text-orange-950/50">{item.desc}</span>
                 </span>
                 {item.key === "orders" && unreadOrders > 0 ? <span className="ml-auto grid h-6 min-w-6 place-items-center rounded-full bg-red-600 px-1 text-xs font-black text-white ring-2 ring-white/30">{unreadOrders}</span> : null}
               </button>
             ))}
           </nav>
 
-          <div className="mt-5 hidden rounded-[2rem] border border-white/10 bg-white/10 p-4 lg:block">
-            <p className="text-sm font-black text-white">Status toko</p>
-            <div className="mt-3 space-y-2 text-sm text-white/65">
-              <p className="flex justify-between"><span>Menu aktif</span><b className="text-white">{stats.activeProducts}</b></p>
+          <div className="mt-5 hidden rounded-[2rem] border border-orange-100 bg-[#fff8ec] p-4 lg:block">
+            <p className="text-sm font-black text-saung-dark">Status toko</p>
+            <div className="mt-3 space-y-2 text-sm text-orange-950/60">
+              <p className="flex justify-between"><span>Menu aktif</span><b className="text-saung-dark">{stats.activeProducts}</b></p>
               <p className="flex justify-between"><span>Order aktif</span><b className="text-saung-yellow">{stats.pendingOrders}</b></p>
-              <p className="flex justify-between"><span>Meja</span><b className="text-white">{stats.tables}</b></p>
+              <p className="flex justify-between"><span>Meja</span><b className="text-saung-dark">{stats.tables}</b></p>
             </div>
           </div>
 
           <div className="mt-5 flex gap-2">
-            <Link href="/" className="flex-1 rounded-2xl bg-white/10 px-4 py-3 text-center text-sm font-black text-white transition hover:bg-white/15"><i className="fa-solid fa-store mr-2" />Menu</Link>
-            <button onClick={logout} className="rounded-2xl bg-red-500/20 px-4 py-3 text-sm font-black text-red-100 transition hover:bg-red-500/30"><i className="fa-solid fa-right-from-bracket mr-2" />Logout</button>
+            <Link href="/" className="flex-1 rounded-2xl bg-[#fff4db] px-4 py-3 text-center text-sm font-black text-saung-red transition hover:bg-yellow-50"><i className="fa-solid fa-store mr-2" />Menu</Link>
+            <button onClick={logout} className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-black text-red-700 transition hover:bg-red-100"><i className="fa-solid fa-right-from-bracket mr-2" />Logout</button>
           </div>
         </aside>
 
-        <section className="admin-content min-w-0 p-4 sm:p-6 lg:p-8">
-          <header className="mb-6 overflow-hidden rounded-[2.2rem] border border-white/10 bg-white shadow-2xl shadow-black/20">
+        <section className="admin-content admin-gojek-content min-w-0 p-4 sm:p-6 lg:p-8">
+          <header className="admin-gojek-header mb-6 overflow-hidden rounded-[2.2rem] border border-orange-100 bg-[#fffaf1] shadow-sm">
             <div className="relative p-6 sm:p-7">
-              {settings?.hero_image_url ? <img src={settings.hero_image_url} alt={`Banner ${settings.store_name}`} className="absolute inset-0 h-full w-full object-cover" /> : null}
-              <div className={`absolute inset-0 ${settings?.hero_image_url ? "bg-gradient-to-r from-white via-white/92 to-white/72" : "bg-white/95"}`} />
-              <div className="absolute right-0 top-0 h-40 w-40 rounded-bl-[5rem] bg-gradient-to-br from-saung-yellow/50 to-saung-orange/30 blur-2xl" />
+              <div className="absolute inset-0 bg-[#fffaf1]" />
+              <div className="absolute right-0 top-0 h-40 w-40 rounded-bl-[5rem] bg-[#fff1d8]" />
               <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-3xl bg-gradient-to-br from-saung-red to-saung-orange text-3xl text-white shadow-glow">
-                    {settings?.logo_url ? <img src={settings.logo_url} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" /> : "🎋"}
+                  <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-3xl bg-saung-red text-3xl text-white shadow-glow">
+                    {settings?.logo_url ? <img src={settings.logo_url} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" /> : <i className="fa-solid fa-store" />}
                   </div>
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.28em] text-saung-orange">{navItems.find((item) => item.key === tab)?.label || "Dashboard"}</p>
                     <h2 className="mt-2 text-3xl font-black text-saung-dark sm:text-4xl">{settings?.store_name || "KEDAI SAUNG BAMBU"}</h2>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-orange-950/65">Kelola operasional kedai dari satu dashboard: pesanan realtime, menu, QR meja, foto toko, dan setting pembayaran.</p>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-orange-950/65">Kelola operasional kedai dari satu dashboard: pesanan realtime, menu, QR meja, profil toko, dan setting pembayaran.</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -746,7 +909,7 @@ export default function AdminPage() {
                     {notificationEnabled ? "Notif Aktif" : "Aktifkan Notif"}
                     {unreadOrders ? <span className="absolute -right-2 -top-2 grid h-6 min-w-6 place-items-center rounded-full bg-red-700 px-1 text-xs text-white ring-2 ring-white">{unreadOrders}</span> : null}
                   </button>
-                  <button onClick={loadAll} disabled={loading || !!actionLoading} className="flex items-center gap-2 rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-black text-saung-dark shadow-sm transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-70">{loading ? <AdminSpinner /> : <span>↻</span>} Refresh</button>
+                  <button onClick={loadAll} disabled={loading || !!actionLoading} className="flex items-center gap-2 rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-black text-saung-dark shadow-sm transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-70">{loading ? <AdminSpinner /> : <i className="fa-solid fa-rotate" />} Refresh</button>
                   <Link href="/" className="rounded-2xl bg-saung-dark px-4 py-3 text-sm font-black text-white shadow-sm transition hover:scale-[1.02]">Lihat Halaman Customer</Link>
                 </div>
               </div>
@@ -774,7 +937,7 @@ export default function AdminPage() {
           {deleteTarget ? (
             <div className="fixed inset-0 z-50 grid place-items-center bg-saung-dark/60 px-4 backdrop-blur-sm">
               <div className="w-full max-w-md rounded-[2rem] bg-white p-6 shadow-2xl">
-                <div className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-red-50 text-3xl">🗑️</div>
+                <div className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-red-50 text-2xl text-red-700"><i className="fa-solid fa-trash" /></div>
                 <h2 className="text-2xl font-black text-saung-dark">Hapus data?</h2>
                 <p className="mt-2 text-sm leading-6 text-orange-950/70">Data <b>{deleteTarget.label}</b> akan dihapus dari database. Aksi ini tidak bisa dibatalkan.</p>
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -804,7 +967,7 @@ export default function AdminPage() {
                   <form onSubmit={saveProduct} className="grid gap-5 p-5 lg:grid-cols-[220px_1fr]">
                     <div className="space-y-3">
                       <div className="overflow-hidden rounded-[1.6rem] border border-orange-100 bg-orange-50">
-                        {productForm.image_url ? <img src={productForm.image_url} alt="Preview menu" className="h-56 w-full object-cover" /> : <div className="grid h-56 place-items-center text-6xl">🍽️</div>}
+                        {productForm.image_url ? <img src={productForm.image_url} alt="Preview menu" className="h-56 w-full object-cover" /> : <div className="grid h-56 place-items-center text-4xl text-saung-red"><i className="fa-solid fa-utensils" /></div>}
                       </div>
                       <div className="grid gap-2">
                         <label className="block cursor-pointer rounded-2xl border border-dashed border-saung-orange bg-orange-50 p-4 text-center text-sm font-black text-saung-red transition hover:bg-orange-100">
@@ -824,7 +987,7 @@ export default function AdminPage() {
                       <div className="grid gap-3 md:grid-cols-2">
                         <select className={inputClass()} value={productForm.category_id} onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}>
                           <option value="">Tanpa kategori</option>
-                          {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.emoji} {cat.name}</option>)}
+                          {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                         </select>
                         <input className={inputClass()} placeholder="Badge, contoh: Best Seller" value={productForm.badge} onChange={(e) => setProductForm({ ...productForm, badge: e.target.value })} />
                       </div>
@@ -850,7 +1013,7 @@ export default function AdminPage() {
                   <form onSubmit={saveCategory} className="space-y-4 p-5">
                     <input className={inputClass()} placeholder="Nama kategori" value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} />
                     <div className="grid gap-3 md:grid-cols-2">
-                      <input className={inputClass()} placeholder="Emoji" value={categoryForm.emoji} onChange={(e) => setCategoryForm({ ...categoryForm, emoji: e.target.value })} />
+                      <input className={inputClass()} placeholder="Contoh: fa-solid fa-utensils" value={categoryForm.emoji} onChange={(e) => setCategoryForm({ ...categoryForm, emoji: e.target.value })} />
                       <input className={inputClass()} type="number" placeholder="Urutan" value={categoryForm.sort_order} onChange={(e) => setCategoryForm({ ...categoryForm, sort_order: e.target.value })} />
                     </div>
                     <label className="flex items-center gap-3 rounded-2xl bg-orange-50 px-4 py-3 text-sm font-bold"><input type="checkbox" checked={categoryForm.is_active} onChange={(e) => setCategoryForm({ ...categoryForm, is_active: e.target.checked })} /> Kategori aktif</label>
@@ -882,32 +1045,32 @@ export default function AdminPage() {
             <div className="space-y-6">
               <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <Metric icon="fa-solid fa-coins" label="Omzet Hari Ini" value={rupiah(stats.omzetToday)} note="Cash + pembayaran lunas" accent="from-emerald-500 to-teal-400" />
-                <Metric icon="fa-solid fa-receipt" label="Order Hari Ini" value={stats.ordersToday} note={`${stats.pendingOrders} order aktif`} accent="from-saung-red to-saung-orange" />
-                <Metric icon="fa-solid fa-utensils" label="Menu Aktif" value={`${stats.activeProducts}/${stats.products}`} note={`${stats.categories} kategori`} accent="from-orange-500 to-yellow-400" />
-                <Metric icon="fa-solid fa-qrcode" label="Meja QR" value={stats.tables} note={`${stats.unpaidOrders} order belum lunas`} accent="from-slate-800 to-slate-500" />
+                <Metric icon="fa-solid fa-calendar-days" label="Omzet Bulan Ini" value={rupiah(stats.omzetMonth)} note={`${stats.ordersMonth} order bulan ini`} accent="from-blue-500 to-cyan-400" />
+                <Metric icon="fa-solid fa-chart-pie" label="Total Omzet" value={rupiah(stats.omzetAll)} note={`${stats.paidOrders} order terbayar`} accent="from-saung-red to-saung-orange" />
+                <Metric icon="fa-solid fa-receipt" label="Order Hari Ini" value={stats.ordersToday} note={`${stats.pendingOrders} order aktif`} accent="from-orange-500 to-yellow-400" />
+                <Metric icon="fa-solid fa-wallet" label="Rata-rata Order" value={rupiah(stats.avgTicket)} note="Average ticket terbayar" accent="from-purple-500 to-pink-400" />
+                <Metric icon="fa-solid fa-hourglass-half" label="Belum Lunas" value={stats.unpaidOrders} note="Perlu dicek/dilanjut bayar" accent="from-amber-500 to-yellow-400" />
+                <Metric icon="fa-solid fa-utensils" label="Menu Aktif" value={`${stats.activeProducts}/${stats.products}`} note={`${stats.categories} kategori`} accent="from-lime-500 to-emerald-400" />
+                <Metric icon="fa-solid fa-qrcode" label="Meja QR" value={stats.tables} note="Meja aktif untuk scan" accent="from-slate-800 to-slate-500" />
               </section>
 
               <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
                 <div className="space-y-6">
-                  <div className="overflow-hidden rounded-[2rem] bg-white shadow-2xl shadow-black/10">
-                    <div className="relative h-52 bg-gradient-to-br from-saung-red via-saung-orange to-saung-yellow">
-                      {settings?.hero_image_url ? <img src={settings.hero_image_url} alt={`Banner ${settings.store_name}`} className="absolute inset-0 h-full w-full object-cover" /> : null}
-                      <div className="absolute inset-0 bg-gradient-to-t from-saung-dark/80 via-saung-dark/25 to-transparent" />
-                      <div className="absolute bottom-5 left-5 right-5 flex items-end gap-4 text-white">
-                        <div className="grid h-20 w-20 place-items-center overflow-hidden rounded-3xl border border-white/30 bg-white/90 text-4xl shadow-2xl">
-                          {settings?.logo_url ? <img src={settings.logo_url} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" /> : "🎋"}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-black uppercase tracking-[0.25em] text-saung-yellow">Profil Toko Aktif</p>
-                          <h3 className="truncate text-3xl font-black">{settings?.store_name || "KEDAI SAUNG BAMBU"}</h3>
-                          <p className="truncate text-sm text-white/75">{settings?.tagline || "Logo dan banner akan tampil di halaman customer."}</p>
-                        </div>
+                  <div className="rounded-[2rem] bg-white p-5 shadow-2xl shadow-black/10">
+                    <div className="flex flex-col gap-5 md:flex-row md:items-center">
+                      <div className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-[2rem] border border-orange-100 bg-orange-50 text-5xl text-saung-red shadow-sm">
+                        {settings?.logo_url ? <img src={settings.logo_url} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" /> : <i className="fa-solid fa-store" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-black uppercase tracking-[0.25em] text-saung-orange">Profil Toko Aktif</p>
+                        <h3 className="mt-2 truncate text-3xl font-black text-saung-dark">{settings?.store_name || "KEDAI SAUNG BAMBU"}</h3>
+                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-orange-950/65">{settings?.tagline || "Logo profil akan tampil di halaman customer."}</p>
                       </div>
                     </div>
-                    <div className="grid gap-3 p-5 md:grid-cols-3">
+                    <div className="mt-5 grid gap-3 md:grid-cols-3">
                       <div className="rounded-2xl bg-orange-50 p-4"><p className="text-xs font-black uppercase tracking-wider text-orange-700">Alamat</p><p className="mt-1 line-clamp-2 text-sm font-bold text-orange-950/70">{settings?.address || "Belum diisi"}</p></div>
                       <div className="rounded-2xl bg-yellow-50 p-4"><p className="text-xs font-black uppercase tracking-wider text-yellow-700">Jam Buka</p><p className="mt-1 text-sm font-bold text-orange-950/70">{settings?.opening_hours || "Belum diisi"}</p></div>
-                      <button onClick={() => selectTab("settings")} className="rounded-2xl bg-saung-dark p-4 text-left text-sm font-black text-white"><i className="fa-solid fa-image mr-2" />Ubah logo/banner</button>
+                      <button onClick={() => selectTab("settings")} className="rounded-2xl bg-saung-dark p-4 text-left text-sm font-black text-white"><i className="fa-solid fa-user-gear mr-2" />Ubah profil toko</button>
                     </div>
                   </div>
 
@@ -937,7 +1100,7 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-5">
-                  <div className="rounded-[2rem] border border-emerald-100 bg-gradient-to-br from-emerald-50 to-yellow-50 p-5 shadow-2xl shadow-black/10">
+                  <div className="rounded-[2rem] border border-emerald-100 bg-emerald-50 p-5 shadow-2xl shadow-black/10">
                     <div className="flex items-start gap-3">
                       <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-600 text-white"><i className="fa-solid fa-bell" /></div>
                       <div className="min-w-0 flex-1">
@@ -952,13 +1115,13 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[2rem] bg-gradient-to-br from-saung-red via-saung-orange to-saung-yellow p-5 text-white shadow-glow">
+                  <div className="rounded-[2rem] bg-saung-red p-5 text-white shadow-glow">
                     <p className="text-sm font-bold text-white/75">Quick Action</p>
                     <h3 className="mt-1 text-2xl font-black">Kelola lebih cepat</h3>
                     <div className="mt-5 grid gap-3">
                       <button onClick={openProductCreate} className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-saung-red"><i className="fa-solid fa-plus mr-2" />Tambah Menu</button>
                       <button onClick={openTableCreate} className="rounded-2xl bg-white/20 px-4 py-3 text-sm font-black text-white backdrop-blur"><i className="fa-solid fa-qrcode mr-2" />Tambah Meja QR</button>
-                      <button onClick={() => selectTab("settings")} className="rounded-2xl bg-saung-dark px-4 py-3 text-sm font-black text-white"><i className="fa-solid fa-image mr-2" />Atur Foto Toko</button>
+                      <button onClick={() => selectTab("settings")} className="rounded-2xl bg-saung-dark px-4 py-3 text-sm font-black text-white"><i className="fa-solid fa-image mr-2" />Atur Profil Toko</button>
                     </div>
                   </div>
 
@@ -978,12 +1141,30 @@ export default function AdminPage() {
                   </div>
 
                   <div className="rounded-[2rem] bg-white p-5 shadow-2xl shadow-black/10">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.25em] text-saung-orange">Best Seller</p>
+                        <h3 className="text-xl font-black text-saung-dark">Menu Terlaris</h3>
+                      </div>
+                      <div className="grid h-11 w-11 place-items-center rounded-2xl bg-yellow-50 text-yellow-700"><i className="fa-solid fa-trophy" /></div>
+                    </div>
+                    <div className="space-y-2">
+                      {stats.bestProducts.length ? stats.bestProducts.map((item, index) => (
+                        <div key={item.name} className="flex items-center justify-between gap-3 rounded-2xl bg-orange-50 px-4 py-3 text-sm">
+                          <span className="font-black text-saung-dark"><i className="fa-solid fa-ranking-star mr-2 text-saung-orange" />#{index + 1} {item.name}</span>
+                          <span className="text-right"><b className="block text-saung-red">{item.qty}x</b><small className="font-bold text-orange-950/55">{rupiah(item.revenue)}</small></span>
+                        </div>
+                      )) : <p className="rounded-2xl bg-orange-50 p-4 text-sm font-bold text-orange-950/60">Belum ada menu terjual.</p>}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[2rem] bg-white p-5 shadow-2xl shadow-black/10">
                     <p className="text-xs font-black uppercase tracking-[0.25em] text-saung-orange">Menu</p>
                     <h3 className="text-xl font-black text-saung-dark">Menu terbaru</h3>
                     <div className="mt-4 space-y-3">
                       {latestProducts.map((product) => (
                         <div key={product.id} className="flex items-center gap-3 rounded-2xl bg-orange-50 p-3">
-                          <div className="grid h-12 w-12 place-items-center overflow-hidden rounded-xl bg-white text-xl">{product.image_url ? <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" /> : "🍽️"}</div>
+                          <div className="grid h-12 w-12 place-items-center overflow-hidden rounded-xl bg-white text-xl">{product.image_url ? <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" /> : <i className="fa-solid fa-utensils" />}</div>
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-black text-saung-dark">{product.name}</p>
                             <p className="text-xs text-orange-950/55">{rupiah(product.price)}</p>
@@ -1004,11 +1185,11 @@ export default function AdminPage() {
                   <p className="text-xs font-black uppercase tracking-[0.25em] text-saung-orange">Order Management</p>
                   <h3 className="text-2xl font-black">Pesanan Masuk</h3>
                 </div>
-                <button onClick={loadAll} disabled={loading || !!actionLoading} className="flex items-center justify-center gap-2 rounded-2xl bg-orange-50 px-4 py-3 text-sm font-black text-saung-red disabled:cursor-not-allowed disabled:opacity-70">{loading ? <AdminSpinner /> : <span>↻</span>} Refresh Order</button>
+                <button onClick={loadAll} disabled={loading || !!actionLoading} className="flex items-center justify-center gap-2 rounded-2xl bg-orange-50 px-4 py-3 text-sm font-black text-saung-red disabled:cursor-not-allowed disabled:opacity-70">{loading ? <AdminSpinner /> : <i className="fa-solid fa-rotate" />} Refresh Order</button>
               </div>
               <div className="grid gap-4">
                 {orders.map((order) => (
-                  <article key={order.id} className="rounded-[1.6rem] border border-orange-100 bg-gradient-to-br from-white to-orange-50/45 p-4">
+                  <article key={order.id} className="rounded-[1.6rem] border border-orange-100 bg-white p-4">
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1068,7 +1249,7 @@ export default function AdminPage() {
                 {filteredProducts.map((product) => (
                   <article key={product.id} className="overflow-hidden rounded-[2rem] bg-white shadow-2xl shadow-black/10">
                     <div className="relative h-44 bg-orange-50">
-                      {product.image_url ? <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-6xl">🍽️</div>}
+                      {product.image_url ? <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-4xl text-saung-red"><i className="fa-solid fa-utensils" /></div>}
                       <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-black text-saung-red shadow">{product.category?.name || "Tanpa kategori"}</div>
                       <div className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-black ${product.is_available ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{product.is_available ? "Tersedia" : "Habis"}</div>
                     </div>
@@ -1108,7 +1289,7 @@ export default function AdminPage() {
                   <article key={cat.id} className="rounded-[2rem] bg-white p-5 shadow-2xl shadow-black/10">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <div className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-orange-50 text-3xl">{cat.emoji || "🍽️"}</div>
+                        <div className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-orange-50 text-2xl text-saung-red"><i className={categoryIconClass(cat.name, cat.emoji)} /></div>
                         <h3 className="text-xl font-black">{cat.name}</h3>
                         <p className="mt-1 text-sm text-orange-950/60">Urutan {cat.sort_order} • {cat.is_active ? "Aktif" : "Nonaktif"}</p>
                       </div>
@@ -1158,47 +1339,105 @@ export default function AdminPage() {
             </section>
           ) : null}
 
-          {tab === "settings" && settingsForm ? (
-            <form onSubmit={saveSettings} className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-              <div className="space-y-5">
-                <div className="overflow-hidden rounded-[2rem] bg-white shadow-2xl shadow-black/10">
-                  <div className="relative h-60 bg-orange-100">
-                    {settingsForm.hero_image_url ? <img src={settingsForm.hero_image_url} alt="Preview banner toko" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center bg-gradient-to-br from-saung-red via-saung-orange to-saung-yellow text-6xl">🎋</div>}
-                    <div className="absolute inset-0 bg-gradient-to-t from-saung-dark/70 via-saung-dark/10 to-transparent" />
-                    <div className="absolute bottom-5 left-5 right-5 flex items-end gap-4 text-white">
-                      <div className="grid h-20 w-20 place-items-center overflow-hidden rounded-3xl border border-white/30 bg-white/90 text-4xl shadow-2xl">
-                        {settingsForm.logo_url ? <img src={settingsForm.logo_url} alt="Logo toko" className="h-full w-full object-cover" /> : "🎋"}
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="truncate text-2xl font-black">{settingsForm.store_name || "KEDAI SAUNG BAMBU"}</h3>
-                        <p className="truncate text-sm text-white/75">{settingsForm.tagline || "Menu warkop hangat dan nyaman"}</p>
-                      </div>
-                    </div>
+
+          {tab === "reports" ? (
+            <section className="space-y-5">
+              <div className="rounded-[2rem] bg-white p-5 shadow-2xl shadow-black/10">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.25em] text-saung-orange">Laporan Jualan</p>
+                    <h3 className="text-2xl font-black">Rekap Penjualan & Export</h3>
+                    <p className="mt-1 text-sm text-orange-950/60">Filter periode, cek omzet, dan export laporan ke PDF atau Excel.</p>
                   </div>
-                  <div className="p-5">
-                    <p className="text-xs font-black uppercase tracking-[0.25em] text-saung-orange">Preview Customer</p>
-                    <p className="mt-2 text-sm leading-6 text-orange-950/65">Foto logo dan banner yang kamu upload di sini akan dipakai untuk tampilan luar/customer page setelah setting disimpan.</p>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[160px_160px_auto_auto]">
+                    <input type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} className={inputClass()} />
+                    <input type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} className={inputClass()} />
+                    <button onClick={exportReportPdf} className="rounded-2xl bg-saung-red px-5 py-3 text-sm font-black text-white"><i className="fa-solid fa-file-pdf mr-2" />Export PDF</button>
+                    <button onClick={exportReportExcel} className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white"><i className="fa-solid fa-file-excel mr-2" />Export Excel</button>
+                  </div>
+                </div>
+              </div>
+
+              <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <Metric icon="fa-solid fa-coins" label="Omzet Periode" value={rupiah(reportStats.revenue)} note="Order lunas + bayar kasir" accent="from-emerald-500 to-teal-400" />
+                <Metric icon="fa-solid fa-receipt" label="Total Order" value={reportStats.totalOrders} note={`${reportStats.paidOrders} order terbayar`} accent="from-saung-red to-saung-orange" />
+                <Metric icon="fa-solid fa-hourglass-half" label="Belum Lunas" value={reportStats.unpaidOrders} note="Menunggu pembayaran" accent="from-amber-500 to-yellow-400" />
+                <Metric icon="fa-solid fa-ban" label="Dibatalkan" value={reportStats.canceledOrders} note="Order batal periode ini" accent="from-slate-800 to-slate-500" />
+              </section>
+
+              <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+                <div className="overflow-hidden rounded-[2rem] bg-white shadow-2xl shadow-black/10">
+                  <div className="border-b border-orange-100 p-5">
+                    <h4 className="text-xl font-black"><i className="fa-solid fa-table mr-2 text-saung-red" />Detail Order</h4>
+                    <p className="mt-1 text-sm font-semibold text-orange-950/55">Data ini yang ikut ke file PDF/Excel.</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[820px] text-left text-sm">
+                      <thead className="bg-saung-dark text-white">
+                        <tr><th className="p-3">Tanggal</th><th className="p-3">Kode</th><th className="p-3">Meja</th><th className="p-3">Pelanggan</th><th className="p-3">Metode</th><th className="p-3">Status</th><th className="p-3 text-right">Total</th></tr>
+                      </thead>
+                      <tbody>
+                        {reportOrders.length ? reportOrders.map((order) => (
+                          <tr key={order.id} className="border-b border-orange-100 odd:bg-orange-50/70">
+                            <td className="p-3 font-semibold text-orange-950/65">{new Date(order.created_at).toLocaleDateString("id-ID")}</td>
+                            <td className="p-3 font-black">#{order.order_code}</td>
+                            <td className="p-3">{order.table_number || "-"}</td>
+                            <td className="p-3">{order.customer_name}</td>
+                            <td className="p-3"><PaymentChip order={order} /></td>
+                            <td className="p-3"><span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${statusBadge(order.payment_status)}`}>{order.payment_status}</span></td>
+                            <td className="p-3 text-right font-black text-saung-red">{rupiah(order.total)}</td>
+                          </tr>
+                        )) : <tr><td colSpan={7} className="p-6 text-center font-bold text-orange-950/55">Tidak ada data pada periode ini.</td></tr>}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
+                <div className="space-y-5">
+                  <div className="rounded-[2rem] bg-white p-5 shadow-2xl shadow-black/10">
+                    <div className="mb-4 flex items-center justify-between">
+                      <h4 className="text-xl font-black"><i className="fa-solid fa-trophy mr-2 text-saung-orange" />Produk Terjual</h4>
+                      <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-black text-saung-red">{reportStats.products.length} menu</span>
+                    </div>
+                    <div className="space-y-2">
+                      {reportStats.products.length ? reportStats.products.slice(0, 10).map((item, index) => (
+                        <div key={item.name} className="flex items-center justify-between rounded-2xl bg-orange-50 px-4 py-3 text-sm">
+                          <span className="font-black">#{index + 1} {item.name}</span>
+                          <span className="text-right"><b className="text-saung-red">{item.qty}x</b><small className="ml-2 font-bold text-orange-950/55">{rupiah(item.revenue)}</small></span>
+                        </div>
+                      )) : <p className="rounded-2xl bg-orange-50 p-4 text-sm font-bold text-orange-950/60">Belum ada produk terjual di periode ini.</p>}
+                    </div>
+                  </div>
+                  <div className="rounded-[2rem] bg-white p-5 shadow-2xl shadow-black/10">
+                    <h4 className="text-xl font-black"><i className="fa-solid fa-circle-info mr-2 text-saung-red" />Catatan Export</h4>
+                    <p className="mt-2 text-sm leading-6 text-orange-950/65">Tombol PDF akan membuka jendela print browser. Pilih <b>Save as PDF</b>. Tombol Excel mengunduh file <b>.xls</b> yang bisa dibuka lewat Microsoft Excel atau Google Sheets.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {tab === "settings" && settingsForm ? (
+            <form onSubmit={saveSettings} className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+              <div className="space-y-5">
+                <div className="rounded-[2rem] bg-white p-6 text-center shadow-2xl shadow-black/10">
+                  <div className="mx-auto grid h-36 w-36 place-items-center overflow-hidden rounded-[2.2rem] border border-orange-100 bg-orange-50 text-6xl text-saung-red shadow-sm">
+                    {settingsForm.logo_url ? <img src={settingsForm.logo_url} alt="Logo toko" className="h-full w-full object-cover" /> : <i className="fa-solid fa-store" />}
+                  </div>
+                  <p className="mt-5 text-xs font-black uppercase tracking-[0.25em] text-saung-orange">Preview Profil Customer</p>
+                  <h3 className="mt-2 text-2xl font-black text-saung-dark">{settingsForm.store_name || "KEDAI SAUNG BAMBU"}</h3>
+                  <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-orange-950/65">{settingsForm.tagline || "Logo profil yang kamu upload akan tampil di halaman customer dan admin."}</p>
+                </div>
+
                 <div className="rounded-[2rem] bg-white p-5 shadow-2xl shadow-black/10">
-                  <h3 className="text-xl font-black">Upload Foto Toko</h3>
-                  <p className="mt-1 text-sm leading-6 text-orange-950/60">Logo dan banner bisa diupload ulang atau dihapus langsung dari Storage.</p>
-                  <div className="mt-4 grid gap-3">
-                    <div className="rounded-[1.5rem] border border-orange-100 bg-orange-50/60 p-3">
-                      <label className="block cursor-pointer rounded-2xl border border-dashed border-saung-orange bg-white p-4 text-sm font-black text-saung-red transition hover:bg-orange-50">
-                        {actionLoading.includes("foto toko") ? <AdminSpinner /> : <i className="fa-solid fa-upload mr-2" />}Upload Logo dari File
-                        <input type="file" accept="image/*" onChange={(e) => uploadSettingImage("logo_url", e.target.files?.[0])} className="hidden" />
-                      </label>
-                      {settingsForm.logo_url ? <button type="button" onClick={() => deleteSettingImage("logo_url", "Logo toko")} disabled={deletingPhoto} className="mt-2 w-full rounded-2xl bg-red-50 px-4 py-3 text-sm font-black text-red-700 transition hover:bg-red-100 disabled:opacity-60"><i className="fa-solid fa-trash mr-2" />Hapus Logo</button> : null}
-                    </div>
-                    <div className="rounded-[1.5rem] border border-orange-100 bg-orange-50/60 p-3">
-                      <label className="block cursor-pointer rounded-2xl border border-dashed border-saung-orange bg-white p-4 text-sm font-black text-saung-red transition hover:bg-orange-50">
-                        {actionLoading.includes("foto toko") ? <AdminSpinner /> : <i className="fa-solid fa-upload mr-2" />}Upload Banner/Hero dari File
-                        <input type="file" accept="image/*" onChange={(e) => uploadSettingImage("hero_image_url", e.target.files?.[0])} className="hidden" />
-                      </label>
-                      {settingsForm.hero_image_url ? <button type="button" onClick={() => deleteSettingImage("hero_image_url", "Banner toko")} disabled={deletingPhoto} className="mt-2 w-full rounded-2xl bg-red-50 px-4 py-3 text-sm font-black text-red-700 transition hover:bg-red-100 disabled:opacity-60"><i className="fa-solid fa-trash mr-2" />Hapus Banner</button> : null}
-                    </div>
+                  <h3 className="text-xl font-black">Upload Logo / Profile Toko</h3>
+                  <p className="mt-1 text-sm leading-6 text-orange-950/60">Fitur banner dihapus. Sekarang tampilan customer memakai logo/profile toko saja.</p>
+                  <div className="mt-4 rounded-[1.5rem] border border-orange-100 bg-orange-50/60 p-3">
+                    <label className="block cursor-pointer rounded-2xl border border-dashed border-saung-orange bg-white p-4 text-sm font-black text-saung-red transition hover:bg-orange-50">
+                      {actionLoading.includes("foto toko") ? <AdminSpinner /> : <i className="fa-solid fa-upload mr-2" />}Upload Logo/Profile dari File
+                      <input type="file" accept="image/*" onChange={(e) => uploadSettingImage("logo_url", e.target.files?.[0])} className="hidden" />
+                    </label>
+                    {settingsForm.logo_url ? <button type="button" onClick={() => deleteSettingImage("logo_url", "Logo toko")} disabled={deletingPhoto} className="mt-2 w-full rounded-2xl bg-red-50 px-4 py-3 text-sm font-black text-red-700 transition hover:bg-red-100 disabled:opacity-60"><i className="fa-solid fa-trash mr-2" />Hapus Logo</button> : null}
                   </div>
                 </div>
               </div>
@@ -1207,7 +1446,7 @@ export default function AdminPage() {
                 <div className="mb-5">
                   <p className="text-xs font-black uppercase tracking-[0.25em] text-saung-orange">Store Settings</p>
                   <h3 className="text-2xl font-black">Setting Toko</h3>
-                  <p className="mt-1 text-sm text-orange-950/60">Bisa isi URL manual atau upload foto lewat file.</p>
+                  <p className="mt-1 text-sm text-orange-950/60">Bisa isi URL logo manual atau upload logo lewat file.</p>
                 </div>
                 <div className="space-y-4">
                   <input value={settingsForm.store_name} onChange={(e) => setSettingsForm({ ...settingsForm, store_name: e.target.value })} className={inputClass()} placeholder="Nama toko" />
@@ -1226,13 +1465,6 @@ export default function AdminPage() {
                     </div>
                     <input value={settingsForm.logo_url} onChange={(e) => setSettingsForm({ ...settingsForm, logo_url: e.target.value })} className={inputClass()} placeholder="Logo URL opsional" />
                   </div>
-                  <div className="rounded-[1.5rem] border border-orange-100 bg-orange-50/70 p-4">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-sm font-black text-saung-dark">Banner/Hero URL</p>
-                      {settingsForm.hero_image_url ? <button type="button" onClick={() => deleteSettingImage("hero_image_url", "Banner toko")} disabled={deletingPhoto} className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-700 disabled:opacity-60">Hapus</button> : null}
-                    </div>
-                    <input value={settingsForm.hero_image_url} onChange={(e) => setSettingsForm({ ...settingsForm, hero_image_url: e.target.value })} className={inputClass()} placeholder="Hero image URL opsional" />
-                  </div>
                   <button disabled={!!actionLoading} className="btn-primary flex w-full items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70">{actionLoading ? <AdminSpinner light /> : null}Simpan Setting Toko</button>
                   <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-6 text-orange-950/70">Password admin tetap diganti dari file <b>.env.local</b> / Vercel ENV: <b>ADMIN_PASSWORD</b>.</p>
                 </div>
@@ -1249,7 +1481,7 @@ export default function AdminPage() {
 function NewOrderToast({ order, onClose, onOpen }: { order: NewOrderNotice; onClose: () => void; onOpen: () => void }) {
   return (
     <div className="fixed right-4 top-4 z-[90] w-[calc(100%-2rem)] max-w-md overflow-hidden rounded-[2rem] border border-yellow-200 bg-white shadow-2xl shadow-black/25 sm:right-6 sm:top-6">
-      <div className="relative overflow-hidden bg-gradient-to-r from-saung-red via-saung-orange to-saung-yellow p-5 text-white">
+      <div className="relative overflow-hidden bg-saung-red p-5 text-white">
         <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/20 blur-2xl" />
         <button onClick={onClose} className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/15 text-lg font-black text-white hover:bg-white/25">×</button>
         <div className="relative flex items-start gap-4 pr-10">
@@ -1284,17 +1516,17 @@ function AdminSpinner({ light = false, size = "h-4 w-4" }: { light?: boolean; si
 function AdminBusyOverlay({ text }: { text: string }) {
   return (
     <div className="fixed inset-0 z-[85] grid place-items-center bg-saung-dark/55 px-4 backdrop-blur-xl">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(255,194,61,0.24),transparent_28%),radial-gradient(circle_at_80%_80%,rgba(193,29,45,0.2),transparent_32%)]" />
+      <div className="absolute inset-0 bg-saung-dark" />
       <div className="relative w-full max-w-sm overflow-hidden rounded-[2.25rem] border border-white/70 bg-white/95 p-6 text-center text-saung-dark shadow-2xl shadow-black/35 backdrop-blur-2xl">
         <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-saung-yellow/35 blur-2xl" />
         <div className="absolute -bottom-12 -left-12 h-36 w-36 rounded-full bg-saung-red/20 blur-2xl" />
-        <div className="relative mx-auto grid h-20 w-20 place-items-center rounded-[1.7rem] bg-gradient-to-br from-saung-red via-saung-orange to-saung-yellow shadow-glow">
+        <div className="relative mx-auto grid h-20 w-20 place-items-center rounded-[1.7rem] bg-saung-red shadow-glow">
           <AdminSpinner light size="h-9 w-9" />
         </div>
         <p className="relative mt-5 text-xs font-black uppercase tracking-[0.28em] text-saung-orange">Sedang proses</p>
         <h3 className="relative mt-2 text-2xl font-black leading-tight">{text}</h3>
         <div className="relative mt-6 h-2 overflow-hidden rounded-full bg-orange-100">
-          <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-saung-red via-saung-orange to-saung-yellow" />
+          <div className="h-full w-2/3 animate-pulse rounded-full bg-saung-red" />
         </div>
         <p className="relative mt-3 text-xs font-bold text-orange-950/45">Jangan tutup halaman sampai proses selesai.</p>
       </div>
@@ -1330,7 +1562,7 @@ function PaymentInfoCard({ icon, label, value, note }: { icon: string; label: st
 function Metric({ icon, label, value, note, accent }: { icon: string; label: string; value: string | number; note: string; accent: string }) {
   return (
     <article className="overflow-hidden rounded-[2rem] bg-white shadow-2xl shadow-black/10">
-      <div className={`h-2 bg-gradient-to-r ${accent}`} />
+      <div className="h-2 bg-saung-red" />
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
