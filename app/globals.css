@@ -578,3 +578,243 @@ body::selection {
 .admin-gojek-sidebar .admin-nav-item:not(.admin-nav-active) .admin-nav-desc {
   color: rgba(42, 9, 8, 0.48) !important;
 }
+
+
+/* =========================================================
+   Human UI overhaul: flatter, calmer, less "AI generated" look
+   ========================================================= */
+.human-customer,
+.human-admin {
+  background: #f6f1e8 !important;
+}
+
+.human-customer *,
+.human-admin * {
+  letter-spacing: normal;
+}
+
+.human-customer .saung-site-bg,
+.human-admin .admin-gojek-backdrop {
+  background: #f6f1e8 !important;
+}
+
+.human-customer .gojek-topbar,
+.human-customer .gojek-menu-header,
+.human-admin .admin-gojek-header,
+.human-admin .admin-gojek-sidebar,
+.human-admin .admin-content article,
+.human-admin .admin-content form,
+.human-admin .admin-content header,
+.human-admin .admin-panel-card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.human-customer .gojek-topbar::after,
+.human-admin .admin-gojek-header::after,
+.human-admin .admin-gojek-sidebar::after {
+  display: none !important;
+}
+
+.human-customer .shadow-xl,
+.human-customer .shadow-2xl,
+.human-customer .shadow-lg,
+.human-admin .shadow-xl,
+.human-admin .shadow-2xl,
+.human-admin .shadow-lg,
+.human-admin .shadow-glow {
+  box-shadow: 0 8px 24px rgba(70, 34, 12, 0.08) !important;
+}
+
+.human-customer .rounded-\[2\.5rem\],
+.human-customer .rounded-\[2\.25rem\],
+.human-customer .rounded-\[2rem\],
+.human-admin .rounded-\[2\.5rem\],
+.human-admin .rounded-\[2\.25rem\],
+.human-admin .rounded-\[2\.2rem\],
+.human-admin .rounded-\[2rem\] {
+  border-radius: 1.35rem !important;
+}
+
+.human-customer .btn-primary,
+.human-admin .btn-primary {
+  border-radius: 0.9rem !important;
+  box-shadow: none !important;
+}
+
+.human-customer .input,
+.human-admin .input,
+.human-admin input,
+.human-admin textarea,
+.human-admin select {
+  border-radius: 0.9rem !important;
+  background: #fffaf2 !important;
+}
+
+.human-customer .human-hero h1 {
+  letter-spacing: -0.035em !important;
+}
+
+.human-customer .gojek-category-strip {
+  background: #f2eadc !important;
+}
+
+.human-customer .gojek-category-strip > button,
+.human-customer .gojek-menu-card,
+.human-customer .gojek-recommendation-card,
+.human-customer .card {
+  border-color: #eadbc6 !important;
+  box-shadow: 0 6px 18px rgba(70, 34, 12, 0.06) !important;
+}
+
+.human-admin .admin-gojek-sidebar {
+  background: #fbf7ef !important;
+}
+
+.human-admin .admin-gojek-header {
+  background: #fffaf2 !important;
+  border-color: #eadbc6 !important;
+}
+
+.human-admin .admin-gojek-header .absolute {
+  display: none !important;
+}
+
+.human-admin .admin-nav-item {
+  border: 1px solid #eadbc6 !important;
+  background: #fffaf2 !important;
+  color: #5c4033 !important;
+  box-shadow: none !important;
+}
+
+.human-admin .admin-nav-item .admin-nav-icon {
+  background: #ffffff !important;
+  color: #9b111e !important;
+}
+
+.human-admin .admin-nav-active {
+  background: #9b111e !important;
+  color: #ffffff !important;
+  border-color: #9b111e !important;
+}
+
+.human-admin .admin-nav-active .admin-nav-icon {
+  background: rgba(255,255,255,0.16) !important;
+  color: #ffffff !important;
+}
+
+.human-admin .admin-nav-active .admin-nav-desc,
+.human-admin .admin-nav-active span {
+  color: #ffffff !important;
+}
+
+.human-admin .admin-content [class*="bg-white"],
+.human-admin .admin-content [class*="bg-white/"] {
+  background-color: #fffaf2 !important;
+}
+
+.human-admin .admin-content [class*="border-orange"],
+.human-admin .admin-content [class*="border-yellow"] {
+  border-color: #eadbc6 !important;
+}
+
+@media (max-width: 640px) {
+  .human-customer .human-hero h1 {
+    font-size: 2.25rem !important;
+    line-height: 1.08 !important;
+  }
+
+  .human-customer .gojek-menu-header {
+    position: static !important;
+    border-radius: 1.2rem !important;
+  }
+}
+
+
+/* Admin dashboard chart polish */
+.dashboard-chart-card {
+  border: 1px solid rgba(251, 146, 60, 0.22);
+  box-shadow: 0 14px 34px rgba(88, 31, 7, 0.08);
+}
+
+.dashboard-chart-card svg text {
+  font-family: inherit;
+}
+
+@media (max-width: 640px) {
+  .dashboard-chart-card {
+    border-radius: 1.25rem !important;
+    padding: 1rem !important;
+  }
+}
+
+
+/* Dashboard compact layout fix */
+.admin-content .dashboard-chart-card {
+  border: 1px solid rgba(251, 146, 60, 0.22);
+}
+.admin-content .dashboard-chart-card h3 {
+  line-height: 1.15;
+}
+
+
+/* Admin dashboard empty-space fix */
+.admin-content .dashboard-chart-card {
+  align-self: start !important;
+}
+
+.admin-content .dashboard-chart-card svg {
+  display: block;
+}
+
+.admin-content .dashboard-chart-card .rounded-\[1\.4rem\] {
+  min-height: 0;
+}
+
+@media (min-width: 1280px) {
+  .admin-content .dashboard-chart-card {
+    height: auto !important;
+  }
+}
+
+
+/* Final admin dashboard compact layout fix */
+.dashboard-compact-final {
+  align-items: start;
+}
+
+.dashboard-compact-final .dashboard-chart-card {
+  min-height: 0 !important;
+  height: auto !important;
+}
+
+.dashboard-compact-final svg {
+  display: block;
+}
+
+@media (min-width: 1280px) {
+  .dashboard-compact-final aside {
+    align-self: start;
+  }
+}
+
+
+
+/* Dashboard final: semua card kanan dipindah ke bawah monitoring */
+.dashboard-flat-final {
+  align-items: start;
+}
+
+.dashboard-flat-final .dashboard-chart-card {
+  min-height: 0 !important;
+  height: auto !important;
+}
+
+.dashboard-flat-final svg {
+  display: block;
+}
+
+
+/* Dashboard no blank: chart kanan tidak lagi membuat ruang kosong bawah chart */
+.dashboard-no-blank .dashboard-chart-card { min-height:0!important; height:auto!important; }
+.dashboard-no-blank svg { display:block; }

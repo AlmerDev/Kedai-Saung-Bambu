@@ -579,7 +579,7 @@ export default function HomePage() {
   const storeLogo = settings.logo_url?.trim();
 
   return (
-    <main className="gojek-app-shell relative min-h-screen overflow-x-hidden bg-[#f7f8f3] text-saung-dark">
+    <main className="gojek-app-shell human-customer relative min-h-screen overflow-x-hidden bg-[#f6f1e8] text-saung-dark">
       {midtransClientKey ? <Script src={snapUrl} data-client-key={midtransClientKey} strategy="afterInteractive" /> : null}
       <div className="saung-site-bg" />
       <ToastStack toasts={toasts} onClose={(id) => setToasts((current) => current.filter((toast) => toast.id !== id))} />
@@ -610,81 +610,69 @@ export default function HomePage() {
 
         {view === "menu" ? (
           <>
-            <section className="mb-7">
-              <div className="hero-profile-only overflow-hidden rounded-[2rem] border border-orange-100 bg-[#fff8ec] shadow-sm">
-                <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr] lg:items-stretch">
-                  <div className="flex flex-col justify-between p-5 sm:p-7 lg:p-10">
-                    <div>
-                      <div className="mb-6 inline-flex max-w-full items-center gap-3 rounded-[1.4rem] border border-orange-100 bg-white p-3 shadow-sm">
-                        <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-orange-50 text-xl text-saung-red">
-                          {storeLogo ? (
-                            <img src={storeLogo} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" />
-                          ) : (
-                            <i className="fa-solid fa-store" />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-saung-orange">QR Menu Digital</p>
-                          <h2 className="truncate text-xl font-black text-saung-dark sm:text-2xl">{settings.store_name}</h2>
-                        </div>
-                      </div>
-
-                      <div className="mb-5 flex flex-wrap gap-2">
-                        <span className="rounded-full border border-orange-100 bg-white px-4 py-2 text-xs font-black text-orange-950/70"><i className="fa-solid fa-drumstick-bite mr-2 text-saung-red" />Ayam Bakar & Goreng</span>
-                        <span className="rounded-full border border-orange-100 bg-white px-4 py-2 text-xs font-black text-orange-950/70"><i className="fa-solid fa-mug-saucer mr-2 text-saung-red" />Minuman Segar</span>
-                        <span className="rounded-full border border-orange-100 bg-white px-4 py-2 text-xs font-black text-orange-950/70"><i className="fa-solid fa-qrcode mr-2 text-saung-red" />Meja {tableNumber}</span>
-                      </div>
-
-                      <h1 className="max-w-3xl text-4xl font-black leading-[1.02] tracking-tight text-saung-dark sm:text-5xl lg:text-6xl">
-                        Pesan menu dari meja, simpel dan cepat.
-                      </h1>
-                      <p className="mt-5 max-w-2xl text-base font-semibold leading-relaxed text-orange-950/65 sm:text-lg">
-                        {settings.tagline || "Warkop nyaman dengan ayam bakar, ayam goreng, minuman segar, kopi, dan cemilan hangat."}
-                      </p>
+            <section className="human-hero mb-6 overflow-hidden rounded-[1.5rem] border border-[#eadbc6] bg-white shadow-sm">
+              <div className="grid gap-0 lg:grid-cols-[1.08fr_0.92fr]">
+                <div className="p-5 sm:p-7 lg:p-8">
+                  <div className="mb-6 flex items-center gap-3">
+                    <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-[#eadbc6] bg-[#fff7ea] text-xl text-saung-red">
+                      {storeLogo ? (
+                        <img src={storeLogo} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" />
+                      ) : (
+                        <i className="fa-solid fa-store" />
+                      )}
                     </div>
-
-                    <div className="mt-7 space-y-5">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-[1.35rem] border border-orange-100 bg-white p-4 shadow-sm">
-                          <p className="text-[11px] font-black uppercase tracking-wider text-orange-950/45">Alamat</p>
-                          <p className="mt-1 text-sm font-bold text-saung-dark"><i className="fa-solid fa-location-dot mr-2 text-saung-red" />{settings.address || "Alamat belum diisi"}</p>
-                        </div>
-                        <div className="rounded-[1.35rem] border border-orange-100 bg-white p-4 shadow-sm">
-                          <p className="text-[11px] font-black uppercase tracking-wider text-orange-950/45">Jam buka</p>
-                          <p className="mt-1 text-sm font-bold text-saung-dark"><i className="fa-solid fa-clock mr-2 text-saung-red" />{settings.opening_hours || "Jam buka belum diisi"}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-3">
-                        <a href="#menu" className="rounded-2xl bg-saung-red px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-saung-dark"><i className="fa-solid fa-book-open mr-2" />Lihat Menu</a>
-                        <button onClick={goToCart} className="rounded-2xl border border-orange-200 bg-white px-5 py-3 text-sm font-black text-saung-red transition hover:bg-orange-50"><i className="fa-solid fa-basket-shopping mr-2" />Checkout Pesanan</button>
-                      </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-saung-orange">QR Menu Digital</p>
+                      <h2 className="truncate text-xl font-black text-saung-dark sm:text-2xl">{settings.store_name}</h2>
+                      <p className="text-xs font-semibold text-orange-950/55">Pesan langsung dari Meja {tableNumber}</p>
                     </div>
                   </div>
 
-                  <aside className="p-5 sm:p-7 lg:p-10 lg:pl-0">
-                    <div className="flex h-full flex-col justify-between rounded-[1.8rem] border border-orange-100 bg-white p-5 text-center shadow-sm sm:p-7">
-                      <div>
-                        <div className="mx-auto grid h-32 w-32 place-items-center overflow-hidden rounded-[2rem] border border-orange-100 bg-orange-50 text-5xl text-saung-red shadow-sm sm:h-40 sm:w-40">
-                          {storeLogo ? (
-                            <img src={storeLogo} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" />
-                          ) : (
-                            <i className="fa-solid fa-store" />
-                          )}
-                        </div>
-                        <p className="mt-5 text-[11px] font-black uppercase tracking-[0.26em] text-saung-orange">Profil Toko</p>
-                        <h3 className="mt-2 text-3xl font-black leading-tight text-saung-dark">{settings.store_name}</h3>
-                        <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-orange-950/58">{settings.tagline || "Profil toko aktif dari admin."}</p>
-                      </div>
+                  <h1 className="max-w-2xl text-3xl font-black leading-tight tracking-tight text-saung-dark sm:text-4xl lg:text-5xl">
+                    Mau pesan apa hari ini?
+                  </h1>
+                  <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-orange-950/62 sm:text-base">
+                    {settings.tagline || "Pilih menu favorit, cek ringkasan pesanan, lalu bayar online atau di kasir."}
+                  </p>
 
-                      <div className="mt-8 grid grid-cols-3 gap-2">
-                        <div className="rounded-2xl bg-[#fff8ec] p-4"><p className="text-xl font-black text-saung-dark">{data.products.length || 0}</p><p className="text-[11px] font-bold text-orange-950/50">Menu</p></div>
-                        <div className="rounded-2xl bg-[#fff8ec] p-4"><p className="text-xl font-black text-saung-dark">{data.categories.length || 0}</p><p className="text-[11px] font-bold text-orange-950/50">Kategori</p></div>
-                        <div className="rounded-2xl bg-[#fff8ec] p-4"><p className="text-xl font-black text-saung-dark">{data.tables.length || 0}</p><p className="text-[11px] font-bold text-orange-950/50">Meja</p></div>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-[#eadbc6] bg-[#fff8ec] px-3.5 py-2 text-xs font-bold text-orange-950/70"><i className="fa-solid fa-drumstick-bite mr-2 text-saung-red" />Ayam & paket nasi</span>
+                    <span className="rounded-full border border-[#eadbc6] bg-[#fff8ec] px-3.5 py-2 text-xs font-bold text-orange-950/70"><i className="fa-solid fa-mug-saucer mr-2 text-saung-red" />Minuman & kopi</span>
+                    <span className="rounded-full border border-[#eadbc6] bg-[#fff8ec] px-3.5 py-2 text-xs font-bold text-orange-950/70"><i className="fa-solid fa-cookie-bite mr-2 text-saung-red" />Cemilan</span>
+                  </div>
+
+                  <div className="mt-7 flex flex-wrap gap-3">
+                    <a href="#menu" className="rounded-xl bg-saung-red px-5 py-3 text-sm font-black text-white transition hover:bg-saung-dark">
+                      <i className="fa-solid fa-book-open mr-2" />Lihat Menu
+                    </a>
+                    <button onClick={goToCart} className="rounded-xl border border-[#e4cdb0] bg-white px-5 py-3 text-sm font-black text-saung-red transition hover:bg-[#fff8ec]">
+                      <i className="fa-solid fa-basket-shopping mr-2" />Checkout
+                    </button>
+                  </div>
+                </div>
+
+                <aside className="border-t border-[#eadbc6] bg-[#fff8ec] p-5 sm:p-7 lg:border-l lg:border-t-0 lg:p-8">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                    <div className="rounded-[1.25rem] border border-[#eadbc6] bg-white p-4">
+                      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-orange-950/45">Ringkasan toko</p>
+                      <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                        <div className="rounded-xl bg-[#fff8ec] p-3"><p className="text-lg font-black">{data.products.length || 0}</p><p className="text-[11px] font-bold text-orange-950/50">Menu</p></div>
+                        <div className="rounded-xl bg-[#fff8ec] p-3"><p className="text-lg font-black">{data.categories.length || 0}</p><p className="text-[11px] font-bold text-orange-950/50">Kategori</p></div>
+                        <div className="rounded-xl bg-[#fff8ec] p-3"><p className="text-lg font-black">{data.tables.length || 0}</p><p className="text-[11px] font-bold text-orange-950/50">Meja</p></div>
                       </div>
                     </div>
-                  </aside>
-                </div>
+
+                    <div className="rounded-[1.25rem] border border-[#eadbc6] bg-white p-4">
+                      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-orange-950/45">Alamat</p>
+                      <p className="mt-2 text-sm font-bold leading-6 text-saung-dark"><i className="fa-solid fa-location-dot mr-2 text-saung-red" />{settings.address || "Alamat belum diisi"}</p>
+                    </div>
+
+                    <div className="rounded-[1.25rem] border border-[#eadbc6] bg-white p-4 sm:col-span-2 lg:col-span-1">
+                      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-orange-950/45">Jam buka</p>
+                      <p className="mt-2 text-sm font-bold leading-6 text-saung-dark"><i className="fa-solid fa-clock mr-2 text-saung-red" />{settings.opening_hours || "Jam buka belum diisi"}</p>
+                    </div>
+                  </div>
+                </aside>
               </div>
             </section>
 
@@ -712,7 +700,7 @@ export default function HomePage() {
             ) : null}
 
             <section id="menu" className="space-y-5">
-              <div className="gojek-menu-header flex flex-col gap-4 rounded-[2rem] border border-white/70 bg-white/75 p-4 shadow-xl shadow-orange-950/5 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+              <div className="gojek-menu-header flex flex-col gap-4 rounded-[1.35rem] border border-[#eadbc6] bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.25em] text-saung-orange">Daftar menu</p>
                   <h2 className="mt-1 text-3xl font-black tracking-tight text-saung-dark">Pilih makanan favoritmu</h2>
@@ -731,7 +719,7 @@ export default function HomePage() {
               </div>
 
               {featuredProducts.length ? (
-                <section className="rounded-[2rem] border border-orange-100 bg-white p-4 shadow-sm">
+                <section className="rounded-[1.35rem] border border-[#eadbc6] bg-white p-4 shadow-sm">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-black uppercase tracking-[0.22em] text-saung-orange">Rekomendasi</p>
@@ -741,8 +729,8 @@ export default function HomePage() {
                   </div>
                   <div className="no-scrollbar flex gap-3 overflow-x-auto pb-1 lg:grid lg:grid-cols-3 lg:overflow-visible lg:pb-0">
                     {featuredProducts.map((product) => (
-                      <article key={product.id} className="flex min-w-[190px] items-center gap-2 rounded-[1.15rem] border border-orange-100 bg-[#fffaf2] p-2.5 shadow-sm lg:min-w-0">
-                        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[1rem] bg-orange-50 text-saung-red">
+                      <article key={product.id} className="flex min-w-[170px] items-center gap-2 rounded-xl border border-[#eadbc6] bg-white p-2 shadow-sm lg:min-w-0">
+                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-[#fff2d8] text-saung-red">
                           {product.image_url ? <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-2xl"><i className="fa-solid fa-utensils" /></div>}
                         </div>
                         <div className="min-w-0 flex-1">
@@ -925,8 +913,8 @@ export default function HomePage() {
 
 function CompactMenuCard({ product, onAdd }: { product: Product; onAdd: () => void }) {
   return (
-    <article className="min-w-[180px] max-w-[180px] overflow-hidden rounded-[1.25rem] border border-orange-100 bg-[#fffaf2] shadow-sm">
-      <div className="h-28 overflow-hidden bg-orange-50 text-saung-red">
+    <article className="min-w-[170px] max-w-[170px] overflow-hidden rounded-xl border border-[#eadbc6] bg-white shadow-sm">
+      <div className="h-24 overflow-hidden bg-[#fff2d8] text-saung-red">
         {product.image_url ? <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-3xl"><i className="fa-solid fa-utensils" /></div>}
       </div>
       <div className="p-3">

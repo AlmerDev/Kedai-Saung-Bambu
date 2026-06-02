@@ -1,0 +1,8 @@
+Update Admin Chart Empty Fix
+
+Perubahan:
+- Card grafik omzet tidak lagi dipaksa stretch mengikuti tinggi kolom kanan.
+- Area kosong besar di bawah chart hilang.
+- Chart dibuat sedikit lebih compact.
+- Layout dashboard tetap pakai chart status order dan metode bayar.
+- Tidak perlu SQL/database baru.
