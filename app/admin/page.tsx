@@ -877,7 +877,7 @@ export default function AdminPage() {
     <main className="admin-gojek-shell human-admin min-h-screen bg-[#f6f1e8] text-saung-dark">
       <div className="admin-gojek-backdrop fixed inset-0" />
       <div className="relative grid min-h-screen lg:grid-cols-[300px_1fr]">
-        <aside className="admin-gojek-sidebar border-b border-orange-100 bg-white p-4 text-saung-dark lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r lg:p-5">
+        <aside className="admin-gojek-sidebar admin-sidebar-scroll border-b border-orange-100 bg-white p-4 text-saung-dark lg:sticky lg:top-0 lg:h-dvh lg:border-b-0 lg:border-r lg:p-5">
           <div className="flex items-center gap-4 rounded-[2rem] border border-orange-100 bg-[#fff8ec] p-4 shadow-sm">
             <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-white text-2xl text-saung-red shadow-sm">
               {settings?.logo_url ? <img src={settings.logo_url} alt={`Logo ${settings.store_name}`} className="h-full w-full object-cover" /> : <i className="fa-solid fa-store" />}

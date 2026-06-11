@@ -818,3 +818,40 @@ body::selection {
 /* Dashboard no blank: chart kanan tidak lagi membuat ruang kosong bawah chart */
 .dashboard-no-blank .dashboard-chart-card { min-height:0!important; height:auto!important; }
 .dashboard-no-blank svg { display:block; }
+
+
+/* Sidebar admin scroll fix: nav bawah tidak kepotong di layar pendek */
+@media (min-width: 1024px) {
+  .admin-sidebar-scroll,
+  .admin-gojek-sidebar {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain;
+    padding-bottom: 1.5rem !important;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(179, 18, 34, 0.35) transparent;
+  }
+
+  .admin-sidebar-scroll::-webkit-scrollbar,
+  .admin-gojek-sidebar::-webkit-scrollbar {
+    width: 7px;
+  }
+
+  .admin-sidebar-scroll::-webkit-scrollbar-track,
+  .admin-gojek-sidebar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .admin-sidebar-scroll::-webkit-scrollbar-thumb,
+  .admin-gojek-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(179, 18, 34, 0.28);
+    border-radius: 999px;
+  }
+
+  .admin-sidebar-scroll::-webkit-scrollbar-thumb:hover,
+  .admin-gojek-sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(179, 18, 34, 0.45);
+  }
+}
