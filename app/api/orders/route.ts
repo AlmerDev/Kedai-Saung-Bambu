@@ -69,17 +69,33 @@ export async function POST(request: NextRequest) {
 
     if (normalized.length === 0) return jsonError("Item pesanan tidak valid.", 400);
 
-    const productIds = [...new Set(normalized.map((item) => item.product_id))];
+    const aggregated = Array.from(
+      normalized.reduce((map, item) => {
+        const existing = map.get(item.product_id);
+        if (existing) existing.quantity += item.quantity;
+        else map.set(item.product_id, { ...item });
+        return map;
+      }, new Map<string, { product_id: string; quantity: number; note: string }>()).values()
+    );
+
+    const productIds = [...new Set(aggregated.map((item) => item.product_id))];
     const supabase = getSupabaseAdmin();
 
     const { data: products, error: productError } = await supabase
       .from("products")
-      .select("id, name, price, is_available")
+      .select("id, name, price, stock, is_available")
       .in("id", productIds)
       .eq("is_available", true);
 
     if (productError) return jsonError(friendlySupabaseError(productError.message), 500, productError);
     if (!products || products.length !== productIds.length) return jsonError("Ada menu yang tidak tersedia / sudah dihapus. Refresh halaman lalu pilih ulang menu.", 400);
+
+    for (const item of aggregated) {
+      const product = products.find((entry) => entry.id === item.product_id)!;
+      const stock = Number(product.stock || 0);
+      if (stock <= 0) return jsonError(`Stok ${product.name} sudah habis. Refresh halaman lalu pilih menu lain.`, 400);
+      if (item.quantity > stock) return jsonError(`Stok ${product.name} tinggal ${stock}. Kurangi jumlah pesanan.`, 400);
+    }
 
     const { data: settings, error: settingsError } = await supabase
       .from("store_settings")
@@ -89,7 +105,7 @@ export async function POST(request: NextRequest) {
 
     if (settingsError) return jsonError(friendlySupabaseError(settingsError.message), 500, settingsError);
 
-    const itemRows = normalized.map((item) => {
+    const itemRows = aggregated.map((item) => {
       const product = products.find((entry) => entry.id === item.product_id)!;
       const subtotal = Number(product.price) * item.quantity;
       return {
@@ -147,6 +163,26 @@ export async function POST(request: NextRequest) {
     if (itemError) {
       await supabase.from("orders").delete().eq("id", order.id);
       return jsonError(friendlySupabaseError(itemError.message), 500, itemError);
+    }
+
+    const decremented: Array<{ product_id: string; quantity: number }> = [];
+    for (const item of itemRows) {
+      const { data: stockOk, error: stockError } = await supabase.rpc("decrement_product_stock", {
+        p_product_id: item.product_id,
+        p_quantity: item.quantity
+      });
+
+      if (stockError || !stockOk) {
+        for (const prev of decremented) {
+          await supabase.rpc("increase_product_stock", {
+            p_product_id: prev.product_id,
+            p_quantity: prev.quantity
+          });
+        }
+        await supabase.from("orders").delete().eq("id", order.id);
+        return jsonError(stockError?.message || `Stok ${item.product_name} tidak cukup. Refresh halaman lalu pilih ulang menu.`, 409, stockError);
+      }
+      decremented.push({ product_id: item.product_id, quantity: item.quantity });
     }
 
     return NextResponse.json({ order: { ...order, order_items: orderItems || [] } }, { status: 201 });

@@ -34,6 +34,7 @@ create table if not exists public.products (
   slug text unique not null,
   description text,
   price integer not null default 0 check (price >= 0),
+  stock integer not null default 0 check (stock >= 0),
   image_url text,
   badge text,
   is_available boolean not null default true,
@@ -94,6 +95,7 @@ create table if not exists public.orders (
   midtrans_transaction_id text,
   midtrans_snap_token text,
   midtrans_redirect_url text,
+  stock_restored boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -118,6 +120,95 @@ create table if not exists public.order_items (
 );
 
 create index if not exists order_items_order_id_idx on public.order_items(order_id);
+
+-- Sistem stok produk.
+-- Stok berkurang otomatis saat order berhasil dibuat.
+create or replace function public.decrement_product_stock(p_product_id uuid, p_quantity int)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  updated_count int;
+begin
+  if p_quantity <= 0 then
+    return false;
+  end if;
+
+  update public.products
+  set stock = stock - p_quantity,
+      updated_at = now()
+  where id = p_product_id
+    and is_available = true
+    and stock >= p_quantity;
+
+  get diagnostics updated_count = row_count;
+  return updated_count = 1;
+end;
+$$;
+
+-- Dipakai untuk rollback stok kalau proses order gagal di tengah jalan.
+create or replace function public.increase_product_stock(p_product_id uuid, p_quantity int)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_quantity <= 0 then
+    return false;
+  end if;
+
+  update public.products
+  set stock = stock + p_quantity,
+      updated_at = now()
+  where id = p_product_id;
+
+  return true;
+end;
+$$;
+
+-- Mengembalikan stok kalau order dibatalkan/gagal/expired/refund.
+create or replace function public.restore_order_stock(p_order_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  already_restored boolean;
+begin
+  select stock_restored
+  into already_restored
+  from public.orders
+  where id = p_order_id
+  for update;
+
+  if not found then
+    return false;
+  end if;
+
+  if already_restored then
+    return true;
+  end if;
+
+  update public.products p
+  set stock = p.stock + oi.quantity,
+      updated_at = now()
+  from public.order_items oi
+  where oi.order_id = p_order_id
+    and oi.product_id = p.id;
+
+  update public.orders
+  set stock_restored = true,
+      updated_at = now()
+  where id = p_order_id;
+
+  return true;
+end;
+$$;
+
 
 -- Storage bucket untuk foto menu.
 insert into storage.buckets (id, name, public)

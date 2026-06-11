@@ -18,3 +18,14 @@ Untuk instalasi baru / database kosong, jalankan hanya:
 Folder ini hanya untuk update dari database versi lama atau kalau terjadi error kolom/order/payment.
 
 Untuk client baru, folder `_optional_legacy_fix` boleh diabaikan.
+
+
+## Sistem stok
+
+Instalasi baru sudah termasuk kolom `products.stock` dan fungsi pengurangan stok otomatis di `schema.sql`.
+
+Kalau update dari database lama, jalankan:
+
+```txt
+_optional_legacy_fix/add_product_stock_system.sql
+```

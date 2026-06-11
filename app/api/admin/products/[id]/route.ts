@@ -17,6 +17,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   if (body.slug !== undefined || body.name !== undefined) payload.slug = slugify(body.slug || body.name);
   if (body.description !== undefined) payload.description = body.description || null;
   if (body.price !== undefined) payload.price = Number(body.price || 0);
+  if (body.stock !== undefined) payload.stock = Math.max(0, Number(body.stock || 0));
   if (body.image_url !== undefined) payload.image_url = body.image_url || null;
   if (body.badge !== undefined) payload.badge = body.badge || null;
   if (body.is_available !== undefined) payload.is_available = Boolean(body.is_available);

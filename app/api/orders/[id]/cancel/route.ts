@@ -56,7 +56,14 @@ export async function POST(_request: NextRequest, context: { params: Promise<{ i
       return jsonError(updateError?.message || "Gagal membatalkan order.", 500, updateError);
     }
 
-    return NextResponse.json({ order: updated, message: "Pesanan berhasil dibatalkan." });
+    await supabase.rpc("restore_order_stock", { p_order_id: id });
+    const { data: restoredOrder } = await supabase
+      .from("orders")
+      .select("*, order_items(*)")
+      .eq("id", id)
+      .single();
+
+    return NextResponse.json({ order: restoredOrder || updated, message: "Pesanan berhasil dibatalkan." });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Server gagal membatalkan order.";
     return jsonError(message, 500);

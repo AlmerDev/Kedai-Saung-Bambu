@@ -55,5 +55,16 @@ export async function POST(request: NextRequest) {
 
   if (updateResult.error) return NextResponse.json({ error: updateResult.error.message }, { status: 500 });
 
+  if (mapped.status === "dibatalkan") {
+    const { data: matchedOrders } = await supabase
+      .from("orders")
+      .select("id, stock_restored")
+      .eq("midtrans_order_id", body.order_id);
+
+    for (const order of matchedOrders || []) {
+      if (!order.stock_restored) await supabase.rpc("restore_order_stock", { p_order_id: order.id });
+    }
+  }
+
   return NextResponse.json({ ok: true });
 }

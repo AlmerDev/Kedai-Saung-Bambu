@@ -775,3 +775,14 @@ Untuk project baru:
 ```
 
 Selesai.
+
+
+## Update Fitur Stok
+
+Sistem stok menu sudah aktif. Admin bisa mengisi stok saat tambah/edit menu. Setiap order berhasil dibuat, stok produk otomatis berkurang. Jika stok 0, tombol beli di halaman pelanggan akan terkunci dan checkout ditolak oleh server.
+
+Untuk database lama, jalankan file opsional:
+
+```txt
+supabase/_optional_legacy_fix/add_product_stock_system.sql
+```

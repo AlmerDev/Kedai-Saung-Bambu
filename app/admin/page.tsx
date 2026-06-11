@@ -30,6 +30,7 @@ type ProductForm = {
   category_id: string;
   description: string;
   price: string;
+  stock: string;
   image_url: string;
   badge: string;
   sort_order: string;
@@ -69,11 +70,28 @@ type NewOrderNotice = {
   created_at: string;
 };
 
+type PhotoDeleteTarget =
+  | { kind: "productForm"; title: string; description: string }
+  | {
+      kind: "savedProduct";
+      title: string;
+      description: string;
+      product: Product;
+    }
+  | {
+      kind: "setting";
+      title: string;
+      description: string;
+      field: "logo_url" | "hero_image_url";
+      label: string;
+    };
+
 const emptyProduct: ProductForm = {
   name: "",
   category_id: "",
   description: "",
   price: "0",
+  stock: "0",
   image_url: "",
   badge: "",
   sort_order: "0",
@@ -294,6 +312,8 @@ export default function AdminPage() {
     path: string;
     label: string;
   } | null>(null);
+  const [photoDeleteTarget, setPhotoDeleteTarget] =
+    useState<PhotoDeleteTarget | null>(null);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
 
   const siteUrl = typeof window !== "undefined" ? window.location.origin : "";
@@ -873,6 +893,7 @@ export default function AdminPage() {
       category_id: product.category_id || "",
       description: product.description || "",
       price: String(product.price),
+      stock: String(product.stock ?? 0),
       image_url: product.image_url || "",
       badge: product.badge || "",
       sort_order: String(product.sort_order || 0),
@@ -995,6 +1016,7 @@ export default function AdminPage() {
         ...productForm,
         category_id: productForm.category_id || null,
         price: Number(productForm.price || 0),
+        stock: Math.max(0, Number(productForm.stock || 0)),
         sort_order: Number(productForm.sort_order || 0),
       });
       if (productForm.id)
@@ -1075,6 +1097,52 @@ export default function AdminPage() {
         body: JSON.stringify({ url }),
       },
     );
+  }
+
+  function requestDeleteProductImage() {
+    if (!productForm.image_url || deletingPhoto) return;
+    setPhotoDeleteTarget({
+      kind: "productForm",
+      title: "Hapus foto menu?",
+      description:
+        "Foto ini akan dihapus dari form dan Supabase Storage. Kalau sudah terhapus, foto tidak bisa dikembalikan kecuali upload ulang.",
+    });
+  }
+
+  function requestDeleteSavedProductImage(product: Product) {
+    if (!product.image_url || deletingPhoto) return;
+    setPhotoDeleteTarget({
+      kind: "savedProduct",
+      product,
+      title: `Hapus foto ${product.name}?`,
+      description:
+        "Foto menu yang sudah tersimpan akan dihapus dari database dan Supabase Storage. Aksi ini tidak bisa dibatalkan.",
+    });
+  }
+
+  function requestDeleteSettingImage(
+    field: "logo_url" | "hero_image_url",
+    label: string,
+  ) {
+    if (!settingsForm?.[field] || deletingPhoto) return;
+    setPhotoDeleteTarget({
+      kind: "setting",
+      field,
+      label,
+      title: `Hapus ${label}?`,
+      description: `${label} akan dihapus dari profil toko dan Supabase Storage. Kalau masih dibutuhkan, simpan dulu file fotonya sebelum menghapus.`,
+    });
+  }
+
+  async function confirmPhotoDelete() {
+    const target = photoDeleteTarget;
+    if (!target) return;
+    setPhotoDeleteTarget(null);
+    if (target.kind === "productForm") await deleteProductImage();
+    if (target.kind === "savedProduct")
+      await deleteSavedProductImage(target.product);
+    if (target.kind === "setting")
+      await deleteSettingImage(target.field, target.label);
   }
 
   async function deleteProductImage() {
@@ -1489,6 +1557,46 @@ export default function AdminPage() {
             </div>
           ) : null}
 
+          {photoDeleteTarget ? (
+            <div className="fixed inset-0 z-[75] grid place-items-center bg-saung-dark/60 px-4 backdrop-blur-sm">
+              <div className="w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+                <div className="border-b border-orange-100 bg-red-50 p-6">
+                  <div className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-white text-2xl text-red-700 shadow-sm">
+                    <i className="fa-solid fa-triangle-exclamation" />
+                  </div>
+                  <h2 className="text-2xl font-black text-saung-dark">
+                    {photoDeleteTarget.title}
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-orange-950/70">
+                    {photoDeleteTarget.description}
+                  </p>
+                </div>
+                <div className="grid gap-3 p-6 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setPhotoDeleteTarget(null)}
+                    className="rounded-2xl bg-orange-50 px-5 py-3 font-black text-saung-red transition hover:bg-orange-100"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmPhotoDelete}
+                    disabled={deletingPhoto || !!actionLoading}
+                    className="flex items-center justify-center gap-2 rounded-2xl bg-red-700 px-5 py-3 font-black text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {deletingPhoto ? (
+                      <AdminSpinner light />
+                    ) : (
+                      <i className="fa-solid fa-trash" />
+                    )}{" "}
+                    Ya, Hapus Foto
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {editor ? (
             <div className="fixed inset-0 z-50 grid place-items-center bg-saung-dark/60 px-4 py-8 backdrop-blur-sm">
               <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[2.2rem] bg-white shadow-2xl">
@@ -1562,7 +1670,7 @@ export default function AdminPage() {
                         {productForm.image_url ? (
                           <button
                             type="button"
-                            onClick={deleteProductImage}
+                            onClick={requestDeleteProductImage}
                             disabled={deletingPhoto}
                             className="rounded-2xl bg-red-50 px-4 py-3 text-center text-sm font-black text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                           >
@@ -1578,102 +1686,159 @@ export default function AdminPage() {
                       </p>
                     </div>
                     <div className="space-y-4">
-                      <input
-                        className={inputClass()}
-                        placeholder="Nama menu"
-                        value={productForm.name}
-                        onChange={(e) =>
-                          setProductForm({
-                            ...productForm,
-                            name: e.target.value,
-                          })
-                        }
-                      />
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <select
-                          className={inputClass()}
-                          value={productForm.category_id}
-                          onChange={(e) =>
-                            setProductForm({
-                              ...productForm,
-                              category_id: e.target.value,
-                            })
-                          }
-                        >
-                          <option value="">Tanpa kategori</option>
-                          {categories.map((cat) => (
-                            <option key={cat.id} value={cat.id}>
-                              {cat.name}
-                            </option>
-                          ))}
-                        </select>
+                      <label className="block space-y-2">
+                        <span className="text-xs font-black uppercase tracking-[0.18em] text-orange-950/55">
+                          Nama menu
+                        </span>
                         <input
                           className={inputClass()}
-                          placeholder="Badge, contoh: Best Seller"
-                          value={productForm.badge}
+                          placeholder="Contoh: Seblak"
+                          value={productForm.name}
                           onChange={(e) =>
                             setProductForm({
                               ...productForm,
-                              badge: e.target.value,
+                              name: e.target.value,
                             })
                           }
                         />
+                      </label>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className="block space-y-2">
+                          <span className="text-xs font-black uppercase tracking-[0.18em] text-orange-950/55">
+                            Kategori menu
+                          </span>
+                          <select
+                            className={inputClass()}
+                            value={productForm.category_id}
+                            onChange={(e) =>
+                              setProductForm({
+                                ...productForm,
+                                category_id: e.target.value,
+                              })
+                            }
+                          >
+                            <option value="">Tanpa kategori</option>
+                            {categories.map((cat) => (
+                              <option key={cat.id} value={cat.id}>
+                                {cat.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="block space-y-2">
+                          <span className="text-xs font-black uppercase tracking-[0.18em] text-orange-950/55">
+                            Badge menu
+                          </span>
+                          <input
+                            className={inputClass()}
+                            placeholder="Opsional, contoh: Best Seller"
+                            value={productForm.badge}
+                            onChange={(e) =>
+                              setProductForm({
+                                ...productForm,
+                                badge: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
                       </div>
-                      <textarea
-                        className={inputClass("min-h-28")}
-                        placeholder="Deskripsi"
-                        value={productForm.description}
-                        onChange={(e) =>
-                          setProductForm({
-                            ...productForm,
-                            description: e.target.value,
-                          })
-                        }
-                      />
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <input
-                          className={inputClass()}
-                          placeholder="Harga"
-                          type="number"
-                          value={productForm.price}
+                      <label className="block space-y-2">
+                        <span className="text-xs font-black uppercase tracking-[0.18em] text-orange-950/55">
+                          Deskripsi menu
+                        </span>
+                        <textarea
+                          className={inputClass("min-h-28")}
+                          placeholder="Tulis deskripsi singkat menu"
+                          value={productForm.description}
                           onChange={(e) =>
                             setProductForm({
                               ...productForm,
-                              price: e.target.value,
+                              description: e.target.value,
                             })
                           }
                         />
-                        <input
-                          className={inputClass()}
-                          placeholder="Urutan"
-                          type="number"
-                          value={productForm.sort_order}
-                          onChange={(e) =>
-                            setProductForm({
-                              ...productForm,
-                              sort_order: e.target.value,
-                            })
-                          }
-                        />
+                      </label>
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <label className="block space-y-2">
+                          <span className="text-xs font-black uppercase tracking-[0.18em] text-orange-950/55">
+                            Harga (Rp)
+                          </span>
+                          <input
+                            className={inputClass()}
+                            placeholder="Contoh: 15000"
+                            type="number"
+                            min="0"
+                            value={productForm.price}
+                            onChange={(e) =>
+                              setProductForm({
+                                ...productForm,
+                                price: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <label className="block space-y-2">
+                          <span className="text-xs font-black uppercase tracking-[0.18em] text-orange-950/55">
+                            Stok menu
+                          </span>
+                          <input
+                            className={inputClass()}
+                            placeholder="Jumlah stok"
+                            type="number"
+                            min="0"
+                            value={productForm.stock}
+                            onChange={(e) =>
+                              setProductForm({
+                                ...productForm,
+                                stock: e.target.value,
+                              })
+                            }
+                          />
+                          <p className="text-xs font-semibold text-orange-950/45">
+                            Kalau 0, pelanggan tidak bisa membeli menu ini.
+                          </p>
+                        </label>
+                        <label className="block space-y-2">
+                          <span className="text-xs font-black uppercase tracking-[0.18em] text-orange-950/55">
+                            Urutan tampil
+                          </span>
+                          <input
+                            className={inputClass()}
+                            placeholder="Angka kecil tampil duluan"
+                            type="number"
+                            value={productForm.sort_order}
+                            onChange={(e) =>
+                              setProductForm({
+                                ...productForm,
+                                sort_order: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
                       </div>
                       <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-                        <input
-                          className={inputClass()}
-                          placeholder="URL gambar opsional"
-                          value={productForm.image_url}
-                          onChange={(e) =>
-                            setProductForm({
-                              ...productForm,
-                              image_url: e.target.value,
-                            })
-                          }
-                        />
+                        <label className="block space-y-2">
+                          <span className="text-xs font-black uppercase tracking-[0.18em] text-orange-950/55">
+                            URL gambar
+                          </span>
+                          <input
+                            className={inputClass()}
+                            placeholder="URL gambar opsional / hasil upload"
+                            value={productForm.image_url}
+                            onChange={(e) =>
+                              setProductForm({
+                                ...productForm,
+                                image_url: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
                         {productForm.image_url ? (
                           <button
                             type="button"
-                            onClick={deleteProductImage}
+                            onClick={requestDeleteProductImage}
                             disabled={deletingPhoto}
-                            className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-black text-red-700 disabled:opacity-60"
+                            className="self-end rounded-2xl bg-red-50 px-4 py-3 text-sm font-black text-red-700 disabled:opacity-60"
                           >
                             Hapus Foto
                           </button>
@@ -1690,7 +1855,7 @@ export default function AdminPage() {
                             })
                           }
                         />{" "}
-                        Menu tersedia
+                        Menu ditampilkan di halaman customer
                       </label>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <button
@@ -1716,41 +1881,56 @@ export default function AdminPage() {
 
                 {editor.type === "category" ? (
                   <form onSubmit={saveCategory} className="space-y-4 p-5">
-                    <input
-                      className={inputClass()}
-                      placeholder="Nama kategori"
-                      value={categoryForm.name}
-                      onChange={(e) =>
-                        setCategoryForm({
-                          ...categoryForm,
-                          name: e.target.value,
-                        })
-                      }
-                    />
+                    <label className="block space-y-2">
+                      <span className="text-xs font-black uppercase tracking-[0.18em] text-orange-950/55">
+                        Nama kategori
+                      </span>
+                      <input
+                        className={inputClass()}
+                        placeholder="Contoh: Makanan Ringan"
+                        value={categoryForm.name}
+                        onChange={(e) =>
+                          setCategoryForm({
+                            ...categoryForm,
+                            name: e.target.value,
+                          })
+                        }
+                      />
+                    </label>
                     <div className="grid gap-3 md:grid-cols-2">
-                      <input
-                        className={inputClass()}
-                        placeholder="Contoh: fa-solid fa-utensils"
-                        value={categoryForm.emoji}
-                        onChange={(e) =>
-                          setCategoryForm({
-                            ...categoryForm,
-                            emoji: e.target.value,
-                          })
-                        }
-                      />
-                      <input
-                        className={inputClass()}
-                        type="number"
-                        placeholder="Urutan"
-                        value={categoryForm.sort_order}
-                        onChange={(e) =>
-                          setCategoryForm({
-                            ...categoryForm,
-                            sort_order: e.target.value,
-                          })
-                        }
-                      />
+                      <label className="block space-y-2">
+                        <span className="text-xs font-black uppercase tracking-[0.18em] text-orange-950/55">
+                          Icon kategori
+                        </span>
+                        <input
+                          className={inputClass()}
+                          placeholder="Contoh: fa-solid fa-utensils"
+                          value={categoryForm.emoji}
+                          onChange={(e) =>
+                            setCategoryForm({
+                              ...categoryForm,
+                              emoji: e.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="block space-y-2">
+                        <span className="text-xs font-black uppercase tracking-[0.18em] text-orange-950/55">
+                          Urutan tampil
+                        </span>
+                        <input
+                          className={inputClass()}
+                          type="number"
+                          placeholder="Angka kecil tampil duluan"
+                          value={categoryForm.sort_order}
+                          onChange={(e) =>
+                            setCategoryForm({
+                              ...categoryForm,
+                              sort_order: e.target.value,
+                            })
+                          }
+                        />
+                      </label>
                     </div>
                     <label className="flex items-center gap-3 rounded-2xl bg-orange-50 px-4 py-3 text-sm font-bold">
                       <input
@@ -1789,25 +1969,38 @@ export default function AdminPage() {
                 {editor.type === "table" ? (
                   <form onSubmit={saveTable} className="space-y-4 p-5">
                     <div className="grid gap-3 md:grid-cols-2">
-                      <input
-                        className={inputClass()}
-                        placeholder="Nomor meja, contoh: 1"
-                        value={tableForm.table_number}
-                        onChange={(e) =>
-                          setTableForm({
-                            ...tableForm,
-                            table_number: e.target.value,
-                          })
-                        }
-                      />
-                      <input
-                        className={inputClass()}
-                        placeholder="Label, contoh: Saung 1"
-                        value={tableForm.label}
-                        onChange={(e) =>
-                          setTableForm({ ...tableForm, label: e.target.value })
-                        }
-                      />
+                      <label className="block space-y-2">
+                        <span className="text-xs font-black uppercase tracking-[0.18em] text-orange-950/55">
+                          Nomor meja
+                        </span>
+                        <input
+                          className={inputClass()}
+                          placeholder="Contoh: 1"
+                          value={tableForm.table_number}
+                          onChange={(e) =>
+                            setTableForm({
+                              ...tableForm,
+                              table_number: e.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="block space-y-2">
+                        <span className="text-xs font-black uppercase tracking-[0.18em] text-orange-950/55">
+                          Label meja
+                        </span>
+                        <input
+                          className={inputClass()}
+                          placeholder="Contoh: Saung 1"
+                          value={tableForm.label}
+                          onChange={(e) =>
+                            setTableForm({
+                              ...tableForm,
+                              label: e.target.value,
+                            })
+                          }
+                        />
+                      </label>
                     </div>
                     <label className="flex items-center gap-3 rounded-2xl bg-orange-50 px-4 py-3 text-sm font-bold">
                       <input
@@ -2357,9 +2550,13 @@ export default function AdminPage() {
                         {product.category?.name || "Tanpa kategori"}
                       </div>
                       <div
-                        className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-black ${product.is_available ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
+                        className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-black ${product.is_available && Number(product.stock || 0) > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
                       >
-                        {product.is_available ? "Tersedia" : "Habis"}
+                        {!product.is_available
+                          ? "Nonaktif"
+                          : Number(product.stock || 0) > 0
+                            ? "Tersedia"
+                            : "Stok Habis"}
                       </div>
                     </div>
                     <div className="p-5">
@@ -2370,9 +2567,16 @@ export default function AdminPage() {
                         {product.description || "Belum ada deskripsi."}
                       </p>
                       <div className="mt-4 flex items-center justify-between gap-3">
-                        <p className="text-xl font-black text-saung-red">
-                          {rupiah(product.price)}
-                        </p>
+                        <div>
+                          <p className="text-xl font-black text-saung-red">
+                            {rupiah(product.price)}
+                          </p>
+                          <p
+                            className={`mt-1 text-xs font-black ${Number(product.stock || 0) > 0 ? "text-emerald-700" : "text-red-700"}`}
+                          >
+                            Stok: {Number(product.stock || 0)}
+                          </p>
+                        </div>
                         {product.badge ? (
                           <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-black text-orange-800">
                             {product.badge}
@@ -2387,16 +2591,7 @@ export default function AdminPage() {
                           <i className="fa-solid fa-pen-to-square mr-2" />
                           Edit
                         </button>
-                        {product.image_url ? (
-                          <button
-                            onClick={() => deleteSavedProductImage(product)}
-                            disabled={deletingPhoto}
-                            className="rounded-2xl bg-orange-50 px-4 py-3 text-sm font-black text-saung-red disabled:opacity-60"
-                          >
-                            <i className="fa-solid fa-trash mr-2" />
-                            Hapus Foto
-                          </button>
-                        ) : null}
+
                         <button
                           onClick={() =>
                             remove(
@@ -2814,7 +3009,7 @@ export default function AdminPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          deleteSettingImage("logo_url", "Logo toko")
+                          requestDeleteSettingImage("logo_url", "Logo toko")
                         }
                         disabled={deletingPhoto}
                         className="mt-2 w-full rounded-2xl bg-red-50 px-4 py-3 text-sm font-black text-red-700 transition hover:bg-red-100 disabled:opacity-60"
@@ -2917,7 +3112,7 @@ export default function AdminPage() {
                         <button
                           type="button"
                           onClick={() =>
-                            deleteSettingImage("logo_url", "Logo toko")
+                            requestDeleteSettingImage("logo_url", "Logo toko")
                           }
                           disabled={deletingPhoto}
                           className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-700 disabled:opacity-60"
@@ -3276,7 +3471,6 @@ function NewOrderToast({
     <div className="fixed right-4 top-4 z-[90] w-[calc(100%-2rem)] max-w-md overflow-hidden rounded-[2rem] border border-yellow-200 bg-white shadow-2xl shadow-black/25 sm:right-6 sm:top-6">
       <div className="relative overflow-hidden bg-saung-red p-5 text-white">
         <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/20 blur-2xl" />
-
         <div className="relative flex items-start gap-4 pr-10">
           <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-white/18 text-2xl shadow-glow">
             <i className="fa-solid fa-bell" />

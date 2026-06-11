@@ -14,6 +14,7 @@ export type Product = {
   slug: string;
   description: string | null;
   price: number;
+  stock: number;
   image_url: string | null;
   badge: string | null;
   is_available: boolean;
@@ -77,6 +78,7 @@ export type Order = {
   midtrans_redirect_url?: string | null;
   created_at: string;
   updated_at: string;
+  stock_restored?: boolean;
   order_items?: OrderItem[];
 };
 

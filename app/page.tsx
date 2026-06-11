@@ -226,15 +226,37 @@ export default function HomePage() {
   }
 
   function addToCart(productId: string) {
+    const product = data.products.find((item) => item.id === productId);
+    const stock = Number(product?.stock || 0);
+    if (!product || stock <= 0) {
+      notify("error", "Stok habis", "Menu ini sedang habis dan tidak bisa dibeli.");
+      return;
+    }
+
+    let added = false;
     setCart((current) => {
       const exist = current.find((item) => item.product_id === productId);
-      if (exist) return current.map((item) => (item.product_id === productId ? { ...item, quantity: item.quantity + 1 } : item));
+      if (exist) {
+        if (exist.quantity >= stock) return current;
+        added = true;
+        return current.map((item) => (item.product_id === productId ? { ...item, quantity: item.quantity + 1 } : item));
+      }
+      added = true;
       return [...current, { product_id: productId, quantity: 1 }];
     });
-    notify("success", "Menu masuk keranjang", "Buka checkout dari tombol keranjang di atas/bawah.");
+
+    if (added) notify("success", "Menu masuk keranjang", "Buka checkout dari tombol keranjang di atas/bawah.");
+    else notify("error", "Stok tidak cukup", `Stok ${product.name} tinggal ${stock}.`);
   }
 
   function changeQty(productId: string, qty: number) {
+    const product = data.products.find((item) => item.id === productId);
+    const stock = Number(product?.stock || 0);
+    if (qty > stock) {
+      notify("error", "Stok tidak cukup", `Stok ${product?.name || "menu"} tinggal ${stock}.`);
+      qty = stock;
+    }
+
     setCart((current) => {
       if (qty <= 0) return current.filter((item) => item.product_id !== productId);
       return current.map((item) => (item.product_id === productId ? { ...item, quantity: qty } : item));
@@ -247,6 +269,11 @@ export default function HomePage() {
 
   async function createOrder(paymentMethod: "cash" | "midtrans") {
     if (cart.length === 0) throw new Error("Keranjang masih kosong. Pilih menu dulu ya.");
+    for (const item of cartLines) {
+      const stock = Number(item.product.stock || 0);
+      if (stock <= 0) throw new Error(`Stok ${item.product.name} sudah habis. Hapus dari keranjang lalu pilih menu lain.`);
+      if (item.quantity > stock) throw new Error(`Stok ${item.product.name} tinggal ${stock}. Kurangi jumlah pesanan.`);
+    }
     if (!customerName.trim()) throw new Error("Isi nama pelanggan dulu.");
     if (!tableNumber.trim()) throw new Error("Nomor meja wajib diisi.");
 
@@ -736,7 +763,8 @@ export default function HomePage() {
                         <div className="min-w-0 flex-1">
                           <h3 className="line-clamp-2 text-sm font-black leading-tight text-saung-dark">{product.name}</h3>
                           <p className="mt-1 text-sm font-black text-saung-red">{rupiah(product.price)}</p>
-                          <button onClick={() => addToCart(product.id)} className="mt-2 rounded-xl bg-saung-red px-3 py-1.5 text-xs font-black text-white transition hover:bg-saung-dark"><i className="fa-solid fa-plus mr-1" />Tambah</button>
+                          <p className={`mt-0.5 text-[11px] font-black ${Number(product.stock || 0) > 0 ? "text-emerald-700" : "text-red-700"}`}>{Number(product.stock || 0) > 0 ? `Stok ${product.stock}` : "Stok habis"}</p>
+                          <button disabled={Number(product.stock || 0) <= 0} onClick={() => addToCart(product.id)} className="mt-2 rounded-xl bg-saung-red px-3 py-1.5 text-xs font-black text-white transition hover:bg-saung-dark disabled:cursor-not-allowed disabled:bg-stone-300"><i className="fa-solid fa-plus mr-1" />{Number(product.stock || 0) > 0 ? "Tambah" : "Habis"}</button>
                         </div>
                       </article>
                     ))}
@@ -823,11 +851,12 @@ export default function HomePage() {
                         <div className="min-w-0">
                           <h3 className="text-lg font-black leading-tight">{item.product.name}</h3>
                           <p className="mt-1 text-sm font-black text-saung-red">{rupiah(item.product.price)} × {item.quantity} = {rupiah(item.subtotal)}</p>
+                          <p className={`mt-1 text-xs font-black ${Number(item.product.stock || 0) >= item.quantity ? "text-emerald-700" : "text-red-700"}`}>Stok tersedia: {Number(item.product.stock || 0)}</p>
                           <input value={item.note || ""} onChange={(e) => updateNote(item.product_id, e.target.value)} className="mt-3 w-full rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-semibold outline-none focus:border-saung-orange focus:bg-white" placeholder="Catatan item: pedas, tanpa sambal, dll" />
                           <button onClick={() => changeQty(item.product_id, 0)} className="mt-2 text-sm font-black text-red-600 hover:text-red-800"><i className="fa-solid fa-trash mr-1" />Hapus menu ini</button>
                         </div>
                         <div className="flex items-center justify-between gap-2 rounded-2xl bg-orange-50 p-2 sm:flex-col sm:bg-transparent sm:p-0">
-                          <button onClick={() => changeQty(item.product_id, item.quantity + 1)} className="grid h-10 w-10 place-items-center rounded-full bg-white font-black text-saung-red shadow">+</button>
+                          <button disabled={item.quantity >= Number(item.product.stock || 0)} onClick={() => changeQty(item.product_id, item.quantity + 1)} className="grid h-10 w-10 place-items-center rounded-full bg-white font-black text-saung-red shadow disabled:cursor-not-allowed disabled:opacity-40">+</button>
                           <span className="w-12 text-center text-xl font-black">{item.quantity}</span>
                           <button onClick={() => changeQty(item.product_id, item.quantity - 1)} className="grid h-10 w-10 place-items-center rounded-full bg-white font-black text-saung-red shadow">−</button>
                         </div>
@@ -858,8 +887,14 @@ export default function HomePage() {
                       <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="input" placeholder="Contoh: Daffa" />
                     </div>
                   </div>
-                  <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="input" placeholder="No. HP opsional" />
-                  <textarea value={orderNote} onChange={(e) => setOrderNote(e.target.value)} className="input min-h-24" placeholder="Catatan pesanan opsional" />
+                  <div>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-wider text-orange-950/55">No. HP pelanggan</label>
+                    <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="input" placeholder="Opsional, contoh: 62812..." />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-wider text-orange-950/55">Catatan pesanan</label>
+                    <textarea value={orderNote} onChange={(e) => setOrderNote(e.target.value)} className="input min-h-24" placeholder="Opsional: catatan untuk dapur/kasir" />
+                  </div>
 
                   <div className="space-y-2 rounded-[1.6rem] bg-saung-dark p-5 text-white">
                     <div className="flex justify-between text-sm"><span>Subtotal</span><b>{rupiah(subtotal)}</b></div>
@@ -921,8 +956,11 @@ function CompactMenuCard({ product, onAdd }: { product: Product; onAdd: () => vo
         <h3 className="line-clamp-2 min-h-[2.5rem] text-sm font-black leading-tight text-saung-dark">{product.name}</h3>
         <p className="mt-1 line-clamp-2 min-h-[2rem] text-xs font-semibold text-orange-950/55">{product.description || "Menu favorit Kedai Saung Bambu."}</p>
         <div className="mt-3 flex items-center justify-between gap-2">
-          <p className="text-sm font-black text-saung-red">{rupiah(product.price)}</p>
-          <button onClick={onAdd} className="rounded-xl bg-saung-red px-3 py-2 text-xs font-black text-white"><i className="fa-solid fa-plus" /></button>
+          <div>
+            <p className="text-sm font-black text-saung-red">{rupiah(product.price)}</p>
+            <p className={`text-[11px] font-black ${Number(product.stock || 0) > 0 ? "text-emerald-700" : "text-red-700"}`}>{Number(product.stock || 0) > 0 ? `Stok ${product.stock}` : "Stok habis"}</p>
+          </div>
+          <button disabled={Number(product.stock || 0) <= 0} onClick={onAdd} className="rounded-xl bg-saung-red px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-stone-300"><i className="fa-solid fa-plus" /></button>
         </div>
       </div>
     </article>
@@ -943,8 +981,9 @@ function MenuCard({ product, onAdd }: { product: Product; onAdd: () => void }) {
           <div>
             <p className="text-[11px] font-black uppercase tracking-wider text-orange-950/45">Harga</p>
             <p className="text-2xl font-black text-saung-red">{rupiah(product.price)}</p>
+            <p className={`mt-1 text-xs font-black ${Number(product.stock || 0) > 0 ? "text-emerald-700" : "text-red-700"}`}>{Number(product.stock || 0) > 0 ? `Stok ${product.stock}` : "Stok habis"}</p>
           </div>
-          <button onClick={onAdd} className="rounded-2xl bg-saung-dark px-5 py-3 text-sm font-black text-white shadow-lg transition hover:bg-saung-red"><i className="fa-solid fa-plus mr-2" />Tambah</button>
+          <button disabled={Number(product.stock || 0) <= 0} onClick={onAdd} className="rounded-2xl bg-saung-dark px-5 py-3 text-sm font-black text-white shadow-lg transition hover:bg-saung-red disabled:cursor-not-allowed disabled:bg-stone-300"><i className="fa-solid fa-plus mr-2" />{Number(product.stock || 0) > 0 ? "Tambah" : "Habis"}</button>
         </div>
       </div>
     </article>

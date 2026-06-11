@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const name = String(body.name || "").trim();
   const price = Number(body.price || 0);
+  const stock = Math.max(0, Number(body.stock || 0));
   if (!name) return NextResponse.json({ error: "Nama menu wajib diisi." }, { status: 400 });
   if (price < 0) return NextResponse.json({ error: "Harga tidak valid." }, { status: 400 });
 
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
       slug: slugify(body.slug || name),
       description: body.description || null,
       price,
+      stock,
       image_url: body.image_url || null,
       badge: body.badge || null,
       is_available: body.is_available ?? true,

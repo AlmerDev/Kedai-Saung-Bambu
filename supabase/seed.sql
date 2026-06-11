@@ -27,30 +27,31 @@ insert into public.categories (name, slug, emoji, sort_order, is_active) values
 ('Makanan Ringan', 'makanan-ringan', 'fa-solid fa-cookie-bite', 5, true)
 on conflict (slug) do update set name = excluded.name, emoji = excluded.emoji, sort_order = excluded.sort_order, is_active = excluded.is_active;
 
-insert into public.products (category_id, name, slug, description, price, badge, sort_order, is_available)
-select c.id, x.name, x.slug, x.description, x.price, x.badge, x.sort_order, true
+insert into public.products (category_id, name, slug, description, price, stock, badge, sort_order, is_available)
+select c.id, x.name, x.slug, x.description, x.price, x.stock, x.badge, x.sort_order, true
 from (
   values
-  ('menu-ayam', 'Ayam Bakar Bumbu Saung', 'ayam-bakar-bumbu-saung', 'Ayam bakar manis gurih dengan sambal dan lalapan.', 22000, 'Best Seller', 1),
-  ('menu-ayam', 'Ayam Goreng Serundeng', 'ayam-goreng-serundeng', 'Ayam goreng renyah dengan taburan serundeng gurih.', 21000, 'Favorit', 2),
-  ('menu-ayam', 'Ayam Geprek Sambal Merah', 'ayam-geprek-sambal-merah', 'Ayam crispy digeprek sambal merah pedas.', 19000, 'Pedas', 3),
-  ('paket-nasi', 'Paket Ayam Bakar Komplit', 'paket-ayam-bakar-komplit', 'Nasi, ayam bakar, tahu, tempe, lalapan, sambal.', 28000, 'Komplit', 1),
-  ('paket-nasi', 'Paket Ayam Goreng Komplit', 'paket-ayam-goreng-komplit', 'Nasi, ayam goreng, tahu, tempe, lalapan, sambal.', 27000, 'Hemat', 2),
-  ('minuman', 'Es Teh Manis Jumbo', 'es-teh-manis-jumbo', 'Es teh manis segar ukuran jumbo.', 6000, null, 1),
-  ('minuman', 'Es Jeruk Peras', 'es-jeruk-peras', 'Jeruk peras segar dengan es batu.', 9000, 'Segar', 2),
-  ('minuman', 'Susu Jahe Hangat', 'susu-jahe-hangat', 'Susu jahe hangat cocok buat nongkrong malam.', 12000, null, 3),
-  ('kopi-teh', 'Kopi Susu Saung', 'kopi-susu-saung', 'Kopi susu creamy racikan khas saung.', 15000, 'Signature', 1),
-  ('kopi-teh', 'Kopi Hitam Tubruk', 'kopi-hitam-tubruk', 'Kopi hitam klasik ala warkop.', 8000, null, 2),
-  ('makanan-ringan', 'Pisang Goreng Keju', 'pisang-goreng-keju', 'Pisang goreng hangat dengan keju dan susu.', 14000, 'Manis', 1),
-  ('makanan-ringan', 'Kentang Sosis Saus Merah', 'kentang-sosis-saus-merah', 'Kentang dan sosis goreng dengan saus khas.', 16000, null, 2),
-  ('makanan-ringan', 'Tahu Crispy Sambal Kecap', 'tahu-crispy-sambal-kecap', 'Tahu crispy gurih dengan sambal kecap.', 12000, null, 3)
-) as x(category_slug, name, slug, description, price, badge, sort_order)
+  ('menu-ayam', 'Ayam Bakar Bumbu Saung', 'ayam-bakar-bumbu-saung', 'Ayam bakar manis gurih dengan sambal dan lalapan.', 22000, 25, 'Best Seller', 1),
+  ('menu-ayam', 'Ayam Goreng Serundeng', 'ayam-goreng-serundeng', 'Ayam goreng renyah dengan taburan serundeng gurih.', 21000, 25, 'Favorit', 2),
+  ('menu-ayam', 'Ayam Geprek Sambal Merah', 'ayam-geprek-sambal-merah', 'Ayam crispy digeprek sambal merah pedas.', 19000, 20, 'Pedas', 3),
+  ('paket-nasi', 'Paket Ayam Bakar Komplit', 'paket-ayam-bakar-komplit', 'Nasi, ayam bakar, tahu, tempe, lalapan, sambal.', 28000, 18, 'Komplit', 1),
+  ('paket-nasi', 'Paket Ayam Goreng Komplit', 'paket-ayam-goreng-komplit', 'Nasi, ayam goreng, tahu, tempe, lalapan, sambal.', 27000, 18, 'Hemat', 2),
+  ('minuman', 'Es Teh Manis Jumbo', 'es-teh-manis-jumbo', 'Es teh manis segar ukuran jumbo.', 6000, 40, null, 1),
+  ('minuman', 'Es Jeruk Peras', 'es-jeruk-peras', 'Jeruk peras segar dengan es batu.', 9000, 35, 'Segar', 2),
+  ('minuman', 'Susu Jahe Hangat', 'susu-jahe-hangat', 'Susu jahe hangat cocok buat nongkrong malam.', 12000, 25, null, 3),
+  ('kopi-teh', 'Kopi Susu Saung', 'kopi-susu-saung', 'Kopi susu creamy racikan khas saung.', 15000, 30, 'Signature', 1),
+  ('kopi-teh', 'Kopi Hitam Tubruk', 'kopi-hitam-tubruk', 'Kopi hitam klasik ala warkop.', 8000, 35, null, 2),
+  ('makanan-ringan', 'Pisang Goreng Keju', 'pisang-goreng-keju', 'Pisang goreng hangat dengan keju dan susu.', 14000, 20, 'Manis', 1),
+  ('makanan-ringan', 'Kentang Sosis Saus Merah', 'kentang-sosis-saus-merah', 'Kentang dan sosis goreng dengan saus khas.', 16000, 20, null, 2),
+  ('makanan-ringan', 'Tahu Crispy Sambal Kecap', 'tahu-crispy-sambal-kecap', 'Tahu crispy gurih dengan sambal kecap.', 12000, 25, null, 3)
+) as x(category_slug, name, slug, description, price, stock, badge, sort_order)
 join public.categories c on c.slug = x.category_slug
 on conflict (slug) do update set
   category_id = excluded.category_id,
   name = excluded.name,
   description = excluded.description,
   price = excluded.price,
+  stock = excluded.stock,
   badge = excluded.badge,
   sort_order = excluded.sort_order,
   is_available = excluded.is_available;

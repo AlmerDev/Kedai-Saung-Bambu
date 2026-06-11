@@ -30,15 +30,26 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 
   if (body.note !== undefined) payload.note = body.note || null;
 
-  const { data, error } = await getSupabaseAdmin().from("orders").update(payload).eq("id", id).select("*, order_items(*)").single();
+  const supabase = getSupabaseAdmin();
+  let { data, error } = await supabase.from("orders").update(payload).eq("id", id).select("*, order_items(*)").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (data?.status === "dibatalkan" && !data.stock_restored) {
+    await supabase.rpc("restore_order_stock", { p_order_id: id });
+    const refreshed = await supabase.from("orders").select("*, order_items(*)").eq("id", id).single();
+    data = refreshed.data || data;
+  }
+
   return NextResponse.json({ order: data });
 }
 
 export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   if (!isAdminRequest(request)) return unauthorized();
   const { id } = await context.params;
-  const { error } = await getSupabaseAdmin().from("orders").delete().eq("id", id);
+  const supabase = getSupabaseAdmin();
+  const { data: order } = await supabase.from("orders").select("id, stock_restored").eq("id", id).maybeSingle();
+  if (order && !order.stock_restored) await supabase.rpc("restore_order_stock", { p_order_id: id });
+  const { error } = await supabase.from("orders").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
