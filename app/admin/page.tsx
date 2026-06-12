@@ -2591,7 +2591,6 @@ export default function AdminPage() {
                           <i className="fa-solid fa-pen-to-square mr-2" />
                           Edit
                         </button>
-
                         <button
                           onClick={() =>
                             remove(

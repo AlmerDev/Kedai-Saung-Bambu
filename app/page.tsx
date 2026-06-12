@@ -233,27 +233,29 @@ export default function HomePage() {
       return;
     }
 
-    let added = false;
+    const currentQty = cart.find((item) => item.product_id === productId)?.quantity || 0;
+    if (currentQty >= stock) {
+      notify("error", "Stok tidak cukup", `Stok ${product.name} tinggal ${stock}, dan sudah ada ${currentQty} di keranjang.`);
+      return;
+    }
+
     setCart((current) => {
       const exist = current.find((item) => item.product_id === productId);
       if (exist) {
-        if (exist.quantity >= stock) return current;
-        added = true;
-        return current.map((item) => (item.product_id === productId ? { ...item, quantity: item.quantity + 1 } : item));
+        const safeQty = Math.min(stock, exist.quantity + 1);
+        return current.map((item) => (item.product_id === productId ? { ...item, quantity: safeQty } : item));
       }
-      added = true;
       return [...current, { product_id: productId, quantity: 1 }];
     });
 
-    if (added) notify("success", "Menu masuk keranjang", "Buka checkout dari tombol keranjang di atas/bawah.");
-    else notify("error", "Stok tidak cukup", `Stok ${product.name} tinggal ${stock}.`);
+    notify("success", "Menu masuk keranjang", `${product.name} ditambahkan ke keranjang.`);
   }
 
   function changeQty(productId: string, qty: number) {
     const product = data.products.find((item) => item.id === productId);
     const stock = Number(product?.stock || 0);
     if (qty > stock) {
-      notify("error", "Stok tidak cukup", `Stok ${product?.name || "menu"} tinggal ${stock}.`);
+      notify("error", "Stok tidak cukup", `Stok ${product?.name || "menu"} tinggal ${stock}. Jumlah pesanan otomatis dibatasi.`);
       qty = stock;
     }
 
